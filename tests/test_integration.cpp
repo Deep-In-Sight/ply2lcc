@@ -12,11 +12,26 @@ using namespace ply2lcc;
 
 class IntegrationTest : public ::testing::Test {
 protected:
-    static constexpr const char* TEST_DATA_PLY = "test_data/scene_ply";
-    static constexpr const char* TEST_DATA_LCC = "test_data/scene_lcc";
+    std::string test_data_ply_;
+    std::string test_data_lcc_;
 
     void SetUp() override {
-        if (!fs::exists(TEST_DATA_PLY) || !fs::exists(TEST_DATA_LCC)) {
+        // Try multiple paths (running from build/ or project root)
+        std::vector<std::string> base_paths = {
+            "../test_data",           // Running from build/
+            "test_data",              // Running from project root
+            "../../test_data"         // Running from build/subdir
+        };
+
+        for (const auto& base : base_paths) {
+            if (fs::exists(base + "/scene_ply")) {
+                test_data_ply_ = base + "/scene_ply";
+                test_data_lcc_ = base + "/scene_lcc";
+                break;
+            }
+        }
+
+        if (test_data_ply_.empty() || !fs::exists(test_data_ply_)) {
             GTEST_SKIP() << "Test data not available. Copy PLY files to test_data/scene_ply/ "
                          << "and reference LCC to test_data/scene_lcc/";
         }
@@ -24,15 +39,40 @@ protected:
 
     std::string getTestPlyPath() {
         // Look for point_cloud.ply or any .ply file
-        if (fs::exists(std::string(TEST_DATA_PLY) + "/point_cloud.ply")) {
-            return std::string(TEST_DATA_PLY) + "/point_cloud.ply";
+        if (fs::exists(test_data_ply_ + "/point_cloud.ply")) {
+            return test_data_ply_ + "/point_cloud.ply";
         }
-        for (const auto& entry : fs::directory_iterator(TEST_DATA_PLY)) {
+        // Check in point_cloud subdirectory
+        std::string subdir = test_data_ply_ + "/point_cloud/iteration_100";
+        if (fs::exists(subdir)) {
+            for (const auto& entry : fs::directory_iterator(subdir)) {
+                if (entry.path().extension() == ".ply" &&
+                    entry.path().filename().string().find("point_cloud") != std::string::npos) {
+                    return entry.path().string();
+                }
+            }
+        }
+        // Fall back to any .ply in scene_ply
+        for (const auto& entry : fs::directory_iterator(test_data_ply_)) {
             if (entry.path().extension() == ".ply") {
                 return entry.path().string();
             }
         }
         return "";
+    }
+
+    std::string getReferenceLccPath() {
+        // Check common locations for LCC reference data
+        std::vector<std::string> paths = {
+            test_data_lcc_ + "/LCC_Results",
+            test_data_lcc_,
+        };
+        for (const auto& path : paths) {
+            if (fs::exists(path + "/data.bin") || fs::exists(path + "/Data.bin")) {
+                return path;
+            }
+        }
+        return test_data_lcc_;
     }
 };
 
@@ -149,25 +189,40 @@ TEST_F(IntegrationTest, FullConversionPipeline) {
 }
 
 TEST_F(IntegrationTest, CompareWithReferenceLCC) {
-    // Check if reference LCC exists
-    std::string ref_meta = std::string(TEST_DATA_LCC) + "/meta.lcc";
-    if (!fs::exists(ref_meta)) {
-        ref_meta = std::string(TEST_DATA_LCC) + "/converted_from_ply.lcc";
+    std::string ref_dir = getReferenceLccPath();
+
+    // Find meta.lcc file (might have different name)
+    std::string ref_meta;
+    for (const auto& entry : fs::directory_iterator(ref_dir)) {
+        if (entry.path().extension() == ".lcc") {
+            ref_meta = entry.path().string();
+            break;
+        }
     }
-    if (!fs::exists(ref_meta)) {
-        GTEST_SKIP() << "Reference meta.lcc not found in test_data/scene_lcc/";
+    if (ref_meta.empty()) {
+        GTEST_SKIP() << "Reference .lcc file not found in " << ref_dir;
     }
 
-    // Just verify reference files exist and have expected structure
-    std::string ref_data = std::string(TEST_DATA_LCC) + "/data.bin";
+    // Find data.bin
+    std::string ref_data = ref_dir + "/data.bin";
     if (!fs::exists(ref_data)) {
-        ref_data = std::string(TEST_DATA_LCC) + "/Data.bin";
+        ref_data = ref_dir + "/Data.bin";
     }
-    EXPECT_TRUE(fs::exists(ref_data)) << "Reference data.bin not found";
+    ASSERT_TRUE(fs::exists(ref_data)) << "Reference data.bin not found in " << ref_dir;
 
     // Verify data.bin is multiple of 32 bytes
-    if (fs::exists(ref_data)) {
-        auto size = fs::file_size(ref_data);
-        EXPECT_EQ(size % 32, 0u) << "Reference data.bin size not multiple of 32";
+    auto size = fs::file_size(ref_data);
+    EXPECT_EQ(size % 32, 0u) << "Reference data.bin size not multiple of 32";
+
+    // Verify shcoef.bin if exists
+    std::string ref_sh = ref_dir + "/shcoef.bin";
+    if (!fs::exists(ref_sh)) {
+        ref_sh = ref_dir + "/Shcoef.bin";
+    }
+    if (fs::exists(ref_sh)) {
+        auto sh_size = fs::file_size(ref_sh);
+        EXPECT_EQ(sh_size % 64, 0u) << "Reference shcoef.bin size not multiple of 64";
+        // Verify data.bin and shcoef.bin have consistent splat counts
+        EXPECT_EQ(size / 32, sh_size / 64) << "Splat count mismatch between data.bin and shcoef.bin";
     }
 }
