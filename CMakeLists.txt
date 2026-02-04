@@ -45,6 +45,7 @@ if(BUILD_TESTS)
         src/lcc_writer.cpp
         src/spatial_grid.cpp
         src/meta_writer.cpp
+        src/path_resolution.cpp
         external/miniply/miniply.cpp
     )
     target_include_directories(ply2lcc_lib PUBLIC
