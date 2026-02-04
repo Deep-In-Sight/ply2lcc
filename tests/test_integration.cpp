@@ -6,6 +6,7 @@
 #include "spatial_grid.hpp"
 #include "meta_writer.hpp"
 #include "compression.hpp"
+#include "path_resolution.hpp"
 
 namespace fs = std::filesystem;
 using namespace ply2lcc;
@@ -16,61 +17,57 @@ protected:
     std::string test_data_lcc_;
 
     void SetUp() override {
-        // Try multiple paths (running from build/ or project root)
         std::vector<std::string> base_paths = {
-            "../test_data",           // Running from build/
-            "test_data",              // Running from project root
-            "../../test_data"         // Running from build/subdir
+            "../test_data",
+            "test_data",
+            "../../test_data"
         };
 
         for (const auto& base : base_paths) {
-            if (fs::exists(base + "/scene_ply")) {
-                test_data_ply_ = base + "/scene_ply";
+            if (fs::exists(base + "/scene_ply/point_cloud")) {
+                test_data_ply_ = base + "/scene_ply";  // Parent dir, not iteration dir
                 test_data_lcc_ = base + "/scene_lcc";
                 break;
             }
         }
 
-        if (test_data_ply_.empty() || !fs::exists(test_data_ply_)) {
-            GTEST_SKIP() << "Test data not available. Copy PLY files to test_data/scene_ply/ "
-                         << "and reference LCC to test_data/scene_lcc/";
+        if (test_data_ply_.empty() || !fs::exists(test_data_ply_ + "/point_cloud")) {
+            GTEST_SKIP() << "Test data not available. Expected structure: "
+                         << "test_data/scene_ply/point_cloud/iteration_*/";
         }
     }
 
     std::string getTestPlyPath() {
-        // Look for point_cloud.ply or any .ply file
-        if (fs::exists(test_data_ply_ + "/point_cloud.ply")) {
-            return test_data_ply_ + "/point_cloud.ply";
+        auto result = resolve_input_path(test_data_ply_);
+        if (!result.has_value()) {
+            return "";
         }
-        // Check in point_cloud subdirectory
-        std::string subdir = test_data_ply_ + "/point_cloud/iteration_100";
-        if (fs::exists(subdir)) {
-            for (const auto& entry : fs::directory_iterator(subdir)) {
-                if (entry.path().extension() == ".ply" &&
-                    entry.path().filename().string().find("point_cloud") != std::string::npos) {
-                    return entry.path().string();
-                }
-            }
+
+        // Return path to point_cloud.ply in resolved iteration dir
+        std::string ply_path = result->path + "/point_cloud.ply";
+        if (fs::exists(ply_path)) {
+            return ply_path;
         }
-        // Fall back to any .ply in scene_ply
-        for (const auto& entry : fs::directory_iterator(test_data_ply_)) {
-            if (entry.path().extension() == ".ply") {
+
+        // Fallback: any point_cloud*.ply
+        for (const auto& entry : fs::directory_iterator(result->path)) {
+            if (entry.path().extension() == ".ply" &&
+                entry.path().filename().string().find("point_cloud") == 0) {
                 return entry.path().string();
             }
         }
         return "";
     }
 
+    std::string getIterationDir() {
+        auto result = resolve_input_path(test_data_ply_);
+        return result.has_value() ? result->path : "";
+    }
+
     std::string getReferenceLccPath() {
-        // Check common locations for LCC reference data
-        std::vector<std::string> paths = {
-            test_data_lcc_ + "/LCC_Results",
-            test_data_lcc_,
-        };
-        for (const auto& path : paths) {
-            if (fs::exists(path + "/data.bin") || fs::exists(path + "/Data.bin")) {
-                return path;
-            }
+        std::string lcc_results = test_data_lcc_ + "/LCC_Results";
+        if (fs::exists(lcc_results)) {
+            return lcc_results;
         }
         return test_data_lcc_;
     }
@@ -104,11 +101,15 @@ TEST_F(IntegrationTest, PLYBoundingBox) {
 }
 
 TEST_F(IntegrationTest, FullConversionPipeline) {
+    std::string iteration_dir = getIterationDir();
+    ASSERT_FALSE(iteration_dir.empty());
+
     std::string ply_path = getTestPlyPath();
     ASSERT_FALSE(ply_path.empty());
 
-    // Create temp output directory
-    std::string output_dir = "/tmp/ply2lcc_test_" + std::to_string(std::time(nullptr));
+    // Create temp output directory (LCC_Results structure)
+    std::string output_base = "/tmp/ply2lcc_test_" + std::to_string(std::time(nullptr));
+    std::string output_dir = output_base + "/LCC_Results";
     fs::create_directories(output_dir);
 
     // Read PLY
@@ -185,7 +186,7 @@ TEST_F(IntegrationTest, FullConversionPipeline) {
     }
 
     // Cleanup
-    fs::remove_all(output_dir);
+    fs::remove_all(output_base);
 }
 
 TEST_F(IntegrationTest, CompareWithReferenceLCC) {
