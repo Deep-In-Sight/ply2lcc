@@ -90,6 +90,42 @@ struct AttributeRanges {
     }
 };
 
+struct EnvBounds {
+    Vec3f pos_min{std::numeric_limits<float>::max(), std::numeric_limits<float>::max(), std::numeric_limits<float>::max()};
+    Vec3f pos_max{std::numeric_limits<float>::lowest(), std::numeric_limits<float>::lowest(), std::numeric_limits<float>::lowest()};
+    Vec3f sh_min{std::numeric_limits<float>::max(), std::numeric_limits<float>::max(), std::numeric_limits<float>::max()};
+    Vec3f sh_max{std::numeric_limits<float>::lowest(), std::numeric_limits<float>::lowest(), std::numeric_limits<float>::lowest()};
+    Vec3f scale_min{std::numeric_limits<float>::max(), std::numeric_limits<float>::max(), std::numeric_limits<float>::max()};
+    Vec3f scale_max{std::numeric_limits<float>::lowest(), std::numeric_limits<float>::lowest(), std::numeric_limits<float>::lowest()};
+
+    void expand_pos(const Vec3f& p) {
+        pos_min.x = std::min(pos_min.x, p.x);
+        pos_min.y = std::min(pos_min.y, p.y);
+        pos_min.z = std::min(pos_min.z, p.z);
+        pos_max.x = std::max(pos_max.x, p.x);
+        pos_max.y = std::max(pos_max.y, p.y);
+        pos_max.z = std::max(pos_max.z, p.z);
+    }
+
+    void expand_sh(float r, float g, float b) {
+        sh_min.x = std::min(sh_min.x, r);
+        sh_min.y = std::min(sh_min.y, g);
+        sh_min.z = std::min(sh_min.z, b);
+        sh_max.x = std::max(sh_max.x, r);
+        sh_max.y = std::max(sh_max.y, g);
+        sh_max.z = std::max(sh_max.z, b);
+    }
+
+    void expand_scale(const Vec3f& s) {
+        scale_min.x = std::min(scale_min.x, s.x);
+        scale_min.y = std::min(scale_min.y, s.y);
+        scale_min.z = std::min(scale_min.z, s.z);
+        scale_max.x = std::max(scale_max.x, s.x);
+        scale_max.y = std::max(scale_max.y, s.y);
+        scale_max.z = std::max(scale_max.z, s.z);
+    }
+};
+
 struct GridCell {
     uint32_t index;  // (cell_y << 16) | cell_x
     std::vector<std::vector<size_t>> splat_indices;  // per-LOD
