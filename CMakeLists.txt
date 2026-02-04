@@ -10,6 +10,7 @@ add_executable(ply2lcc
     src/ply_reader.cpp
     src/compression.cpp
     src/lcc_writer.cpp
+    src/spatial_grid.cpp
     external/miniply/miniply.cpp
 )
 
