@@ -2,6 +2,7 @@
 #include <fstream>
 #include <iostream>
 #include <cmath>
+#include <algorithm>
 
 namespace ply2lcc {
 
@@ -45,10 +46,23 @@ bool SpatialGrid::write_index_bin(const std::string& path,
         return false;
     }
 
+    // Sort units by (cell_x, cell_y) - column first, then row
+    // This matches the reference LCC format ordering
+    std::vector<LCCUnitInfo> sorted_units = units;
+    std::sort(sorted_units.begin(), sorted_units.end(),
+              [](const LCCUnitInfo& a, const LCCUnitInfo& b) {
+                  uint16_t ax = a.index & 0xFFFF;
+                  uint16_t ay = (a.index >> 16) & 0xFFFF;
+                  uint16_t bx = b.index & 0xFFFF;
+                  uint16_t by = (b.index >> 16) & 0xFFFF;
+                  if (ax != bx) return ax < bx;
+                  return ay < by;
+              });
+
     // Each unit entry: index(4) + [count(4) + offset(8) + size(4)] * num_lods
     // = 4 + 16 * num_lods bytes per unit
 
-    for (const auto& unit : units) {
+    for (const auto& unit : sorted_units) {
         // Write unit index
         file.write(reinterpret_cast<const char*>(&unit.index), 4);
 
