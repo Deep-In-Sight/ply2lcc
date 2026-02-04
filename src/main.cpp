@@ -2,6 +2,8 @@
 #include <string>
 #include <filesystem>
 
+#include "types.hpp"
+
 namespace fs = std::filesystem;
 
 void print_usage(const char* prog) {
