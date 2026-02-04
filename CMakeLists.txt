@@ -13,6 +13,7 @@ add_executable(ply2lcc
     src/spatial_grid.cpp
     src/meta_writer.cpp
     src/path_resolution.cpp
+    src/env_writer.cpp
     external/miniply/miniply.cpp
 )
 
@@ -47,6 +48,7 @@ if(BUILD_TESTS)
         src/spatial_grid.cpp
         src/meta_writer.cpp
         src/path_resolution.cpp
+        src/env_writer.cpp
         external/miniply/miniply.cpp
     )
     target_include_directories(ply2lcc_lib PUBLIC
