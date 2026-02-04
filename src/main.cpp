@@ -1,11 +1,18 @@
 #include <iostream>
 #include <string>
 #include <filesystem>
+#include <vector>
+#include <algorithm>
+#include <regex>
 
 #include "types.hpp"
 #include "ply_reader.hpp"
+#include "lcc_writer.hpp"
+#include "spatial_grid.hpp"
+#include "meta_writer.hpp"
 
 namespace fs = std::filesystem;
+using namespace ply2lcc;
 
 void print_usage(const char* prog) {
     std::cerr << "Usage: " << prog << " <input_dir> -o <output_dir> [options]\n"
@@ -14,63 +21,206 @@ void print_usage(const char* prog) {
               << "  --cell-size X,Y    Grid cell size in meters (default: 30,30)\n";
 }
 
+std::vector<std::string> find_lod_files(const std::string& input_dir, bool single_lod) {
+    std::vector<std::string> files;
+
+    // LOD0 is point_cloud.ply
+    std::string lod0 = input_dir + "/point_cloud.ply";
+    if (fs::exists(lod0)) {
+        files.push_back(lod0);
+    }
+
+    if (single_lod) {
+        return files;
+    }
+
+    // Find point_cloud_N.ply files for LOD1+
+    std::regex pattern("point_cloud_(\\d+)\\.ply");
+    std::vector<std::pair<int, std::string>> numbered_files;
+
+    for (const auto& entry : fs::directory_iterator(input_dir)) {
+        std::string filename = entry.path().filename().string();
+        std::smatch match;
+        if (std::regex_match(filename, match, pattern)) {
+            int num = std::stoi(match[1].str());
+            numbered_files.emplace_back(num, entry.path().string());
+        }
+    }
+
+    // Sort by number
+    std::sort(numbered_files.begin(), numbered_files.end());
+
+    for (const auto& [num, path] : numbered_files) {
+        files.push_back(path);
+    }
+
+    return files;
+}
+
 int main(int argc, char* argv[]) {
     if (argc < 4) {
         print_usage(argv[0]);
         return 1;
     }
 
-    std::string input_dir;
-    std::string output_dir;
-    bool single_lod = false;
-    float cell_size_x = 30.0f;
-    float cell_size_y = 30.0f;
+    ConvertConfig config;
 
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
         if (arg == "-o" && i + 1 < argc) {
-            output_dir = argv[++i];
+            config.output_dir = argv[++i];
         } else if (arg == "--single-lod") {
-            single_lod = true;
+            config.single_lod = true;
         } else if (arg == "--cell-size" && i + 1 < argc) {
-            if (sscanf(argv[++i], "%f,%f", &cell_size_x, &cell_size_y) != 2) {
+            if (sscanf(argv[++i], "%f,%f", &config.cell_size_x, &config.cell_size_y) != 2) {
                 std::cerr << "Error: Invalid cell-size format. Use X,Y\n";
                 return 1;
             }
         } else if (arg[0] != '-') {
-            input_dir = arg;
+            config.input_dir = arg;
         }
     }
 
-    if (input_dir.empty() || output_dir.empty()) {
+    if (config.input_dir.empty() || config.output_dir.empty()) {
         print_usage(argv[0]);
         return 1;
     }
 
-    std::cout << "Input: " << input_dir << "\n"
-              << "Output: " << output_dir << "\n"
-              << "Mode: " << (single_lod ? "single-lod" : "multi-lod") << "\n"
-              << "Cell size: " << cell_size_x << " x " << cell_size_y << "\n";
+    std::cout << "Input: " << config.input_dir << "\n"
+              << "Output: " << config.output_dir << "\n"
+              << "Mode: " << (config.single_lod ? "single-lod" : "multi-lod") << "\n"
+              << "Cell size: " << config.cell_size_x << " x " << config.cell_size_y << "\n";
 
-    // Test PLY reading
-    std::string ply_path = input_dir + "/point_cloud.ply";
-    if (!fs::exists(ply_path)) {
-        ply_path = input_dir + "/point_cloud_2.ply";  // Fallback for testing
-    }
-
-    ply2lcc::PLYHeader header;
-    std::vector<ply2lcc::Splat> splats;
-
-    std::cout << "Reading: " << ply_path << "\n";
-    if (!ply2lcc::PLYReader::read_splats(ply_path, splats, header)) {
-        std::cerr << "Failed to read PLY file\n";
+    // Find PLY files
+    auto ply_files = find_lod_files(config.input_dir, config.single_lod);
+    if (ply_files.empty()) {
+        std::cerr << "No point_cloud*.ply files found in " << config.input_dir << "\n";
         return 1;
     }
 
-    std::cout << "Loaded " << splats.size() << " splats\n";
-    std::cout << "BBox: (" << header.bbox.min.x << ", " << header.bbox.min.y << ", " << header.bbox.min.z << ") - ("
-              << header.bbox.max.x << ", " << header.bbox.max.y << ", " << header.bbox.max.z << ")\n";
-    std::cout << "Has SH: " << (header.has_sh ? "yes" : "no") << "\n";
+    std::cout << "Found " << ply_files.size() << " LOD files\n";
+    for (const auto& f : ply_files) {
+        std::cout << "  " << f << "\n";
+    }
+
+    // Check for environment.ply
+    std::string env_path = config.input_dir + "/environment.ply";
+    bool has_env = fs::exists(env_path);
+    if (has_env) {
+        std::cout << "Found environment.ply\n";
+    }
+
+    // Phase 1: Read all PLYs and compute global bounds
+    std::cout << "\nPhase 1: Computing bounds...\n";
+
+    BBox global_bbox;
+    AttributeRanges global_ranges;
+    std::vector<std::vector<Splat>> all_splats(ply_files.size());
+    std::vector<size_t> splats_per_lod;
+    bool has_sh = true;
+
+    for (size_t lod = 0; lod < ply_files.size(); ++lod) {
+        PLYHeader header;
+        std::cout << "  Reading LOD" << lod << ": " << ply_files[lod] << "\n";
+
+        if (!PLYReader::read_splats(ply_files[lod], all_splats[lod], header)) {
+            std::cerr << "Failed to read " << ply_files[lod] << "\n";
+            return 1;
+        }
+
+        std::cout << "    " << all_splats[lod].size() << " splats\n";
+        splats_per_lod.push_back(all_splats[lod].size());
+        global_bbox.expand(header.bbox);
+
+        if (lod == 0) {
+            has_sh = header.has_sh;
+        }
+
+        // Compute attribute ranges
+        for (const auto& s : all_splats[lod]) {
+            Vec3f linear_scale(std::exp(s.scale.x), std::exp(s.scale.y), std::exp(s.scale.z));
+            global_ranges.expand_scale(linear_scale);
+            global_ranges.expand_opacity(sigmoid(s.opacity));
+
+            if (has_sh) {
+                for (int i = 0; i < 45; ++i) {
+                    global_ranges.expand_sh(s.f_rest[i]);
+                }
+            }
+        }
+    }
+
+    std::cout << "Global bbox: (" << global_bbox.min.x << ", " << global_bbox.min.y << ", " << global_bbox.min.z
+              << ") - (" << global_bbox.max.x << ", " << global_bbox.max.y << ", " << global_bbox.max.z << ")\n";
+    std::cout << "Has SH: " << (has_sh ? "yes" : "no") << "\n";
+
+    // Phase 2: Build spatial grid
+    std::cout << "\nPhase 2: Building spatial grid...\n";
+
+    SpatialGrid grid(config.cell_size_x, config.cell_size_y, global_bbox, ply_files.size());
+
+    for (size_t lod = 0; lod < ply_files.size(); ++lod) {
+        for (size_t i = 0; i < all_splats[lod].size(); ++i) {
+            grid.add_splat(lod, all_splats[lod][i].pos, i);
+        }
+    }
+
+    std::cout << "Created " << grid.get_cells().size() << " grid cells\n";
+
+    // Phase 3: Write LCC data
+    std::cout << "\nPhase 3: Writing LCC data...\n";
+
+    fs::create_directories(config.output_dir);
+
+    LCCWriter writer(config.output_dir, global_ranges, ply_files.size(), has_sh);
+
+    for (const auto& [cell_index, cell] : grid.get_cells()) {
+        for (size_t lod = 0; lod < ply_files.size(); ++lod) {
+            if (cell.splat_indices[lod].empty()) continue;
+
+            // Gather splats for this cell
+            std::vector<Splat> cell_splats;
+            cell_splats.reserve(cell.splat_indices[lod].size());
+            for (size_t idx : cell.splat_indices[lod]) {
+                cell_splats.push_back(all_splats[lod][idx]);
+            }
+
+            writer.write_splats(cell_index, lod, cell_splats);
+        }
+    }
+
+    writer.finalize();
+
+    // Phase 4: Write Index.bin
+    std::cout << "\nPhase 4: Writing Index.bin...\n";
+    grid.write_index_bin(config.output_dir + "/Index.bin", writer.get_units(), ply_files.size());
+
+    // Phase 5: Write meta.lcc
+    std::cout << "\nPhase 5: Writing meta.lcc...\n";
+
+    MetaInfo meta;
+    meta.guid = MetaWriter::generate_guid();
+    meta.total_splats = writer.total_splats();
+    meta.total_levels = ply_files.size();
+    meta.cell_length_x = config.cell_size_x;
+    meta.cell_length_y = config.cell_size_y;
+    meta.index_data_size = 4 + 16 * ply_files.size();
+    meta.splats_per_lod = splats_per_lod;
+    meta.bounding_box = global_bbox;
+    meta.file_type = has_sh ? "Quality" : "Portable";
+    meta.attr_ranges = global_ranges;
+
+    MetaWriter::write(config.output_dir + "/meta.lcc", meta);
+
+    std::cout << "\nConversion complete!\n";
+    std::cout << "Total splats: " << writer.total_splats() << "\n";
+    std::cout << "Output files:\n";
+    std::cout << "  " << config.output_dir << "/meta.lcc\n";
+    std::cout << "  " << config.output_dir << "/Index.bin\n";
+    std::cout << "  " << config.output_dir << "/Data.bin\n";
+    if (has_sh) {
+        std::cout << "  " << config.output_dir << "/Shcoef.bin\n";
+    }
 
     return 0;
 }
