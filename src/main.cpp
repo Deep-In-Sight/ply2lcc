@@ -10,12 +10,20 @@
 #include "lcc_writer.hpp"
 #include "spatial_grid.hpp"
 #include "meta_writer.hpp"
+#include "path_resolution.hpp"
 
 namespace fs = std::filesystem;
 using namespace ply2lcc;
 
 void print_usage(const char* prog) {
     std::cerr << "Usage: " << prog << " <input_dir> -o <output_dir> [options]\n"
+              << "\n"
+              << "Expected input structure:\n"
+              << "  input_dir/point_cloud/iteration_<N>/*.ply\n"
+              << "\n"
+              << "Output structure:\n"
+              << "  output_dir/LCC_Results/{meta.lcc, Data.bin, Index.bin, ...}\n"
+              << "\n"
               << "Options:\n"
               << "  --single-lod       Use only LOD0 (default: multi-LOD)\n"
               << "  --cell-size X,Y    Grid cell size in meters (default: 30,30)\n";
@@ -86,15 +94,27 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    // Resolve input path
+    auto input_result = resolve_input_path(config.input_dir);
+    if (!input_result.has_value()) {
+        std::cerr << "Error: " << input_result.error() << "\n";
+        return 1;
+    }
+
+    std::string iteration_dir = input_result->path;
     std::cout << "Input: " << config.input_dir << "\n"
-              << "Output: " << config.output_dir << "\n"
+              << "  Using: point_cloud/iteration_" << input_result->iteration_number << "/\n";
+
+    // Resolve output path
+    std::string lcc_output_dir = resolve_output_path(config.output_dir);
+    std::cout << "Output: " << lcc_output_dir << "\n"
               << "Mode: " << (config.single_lod ? "single-lod" : "multi-lod") << "\n"
               << "Cell size: " << config.cell_size_x << " x " << config.cell_size_y << "\n";
 
-    // Find PLY files
-    auto ply_files = find_lod_files(config.input_dir, config.single_lod);
+    // Find PLY files in resolved iteration directory
+    auto ply_files = find_lod_files(iteration_dir, config.single_lod);
     if (ply_files.empty()) {
-        std::cerr << "No point_cloud*.ply files found in " << config.input_dir << "\n";
+        std::cerr << "No point_cloud*.ply files found in " << iteration_dir << "\n";
         return 1;
     }
 
@@ -104,7 +124,7 @@ int main(int argc, char* argv[]) {
     }
 
     // Check for environment.ply
-    std::string env_path = config.input_dir + "/environment.ply";
+    std::string env_path = iteration_dir + "/environment.ply";
     bool has_env = fs::exists(env_path);
     if (has_env) {
         std::cout << "Found environment.ply\n";
@@ -170,9 +190,7 @@ int main(int argc, char* argv[]) {
     // Phase 3: Write LCC data
     std::cout << "\nPhase 3: Writing LCC data...\n";
 
-    fs::create_directories(config.output_dir);
-
-    LCCWriter writer(config.output_dir, global_ranges, ply_files.size(), has_sh);
+    LCCWriter writer(lcc_output_dir, global_ranges, ply_files.size(), has_sh);
 
     for (const auto& [cell_index, cell] : grid.get_cells()) {
         for (size_t lod = 0; lod < ply_files.size(); ++lod) {
@@ -193,7 +211,7 @@ int main(int argc, char* argv[]) {
 
     // Phase 4: Write Index.bin
     std::cout << "\nPhase 4: Writing Index.bin...\n";
-    grid.write_index_bin(config.output_dir + "/Index.bin", writer.get_units(), ply_files.size());
+    grid.write_index_bin(lcc_output_dir + "/Index.bin", writer.get_units(), ply_files.size());
 
     // Phase 5: Write meta.lcc
     std::cout << "\nPhase 5: Writing meta.lcc...\n";
@@ -210,16 +228,16 @@ int main(int argc, char* argv[]) {
     meta.file_type = has_sh ? "Quality" : "Portable";
     meta.attr_ranges = global_ranges;
 
-    MetaWriter::write(config.output_dir + "/meta.lcc", meta);
+    MetaWriter::write(lcc_output_dir + "/meta.lcc", meta);
 
     std::cout << "\nConversion complete!\n";
     std::cout << "Total splats: " << writer.total_splats() << "\n";
     std::cout << "Output files:\n";
-    std::cout << "  " << config.output_dir << "/meta.lcc\n";
-    std::cout << "  " << config.output_dir << "/Index.bin\n";
-    std::cout << "  " << config.output_dir << "/Data.bin\n";
+    std::cout << "  " << lcc_output_dir << "/meta.lcc\n";
+    std::cout << "  " << lcc_output_dir << "/Index.bin\n";
+    std::cout << "  " << lcc_output_dir << "/Data.bin\n";
     if (has_sh) {
-        std::cout << "  " << config.output_dir << "/Shcoef.bin\n";
+        std::cout << "  " << lcc_output_dir << "/Shcoef.bin\n";
     }
 
     return 0;
