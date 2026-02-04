@@ -33,6 +33,10 @@ struct MetaInfo {
     std::string file_type = "Quality";  // or "Portable"
 
     AttributeRanges attr_ranges;
+
+    // Environment bounds (optional)
+    bool has_environment = false;
+    EnvBounds env_bounds;
 };
 
 class MetaWriter {

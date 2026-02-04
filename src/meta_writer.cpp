@@ -64,11 +64,16 @@ bool MetaWriter::write(const std::string& path, const MetaInfo& meta) {
     // Attributes
     file << "\t\"attributes\": [\n";
 
-    // Position (use 10x scale as in reference)
+    // Position - use environment bounds if available, otherwise bbox
     file << "\t\t{\n";
     file << "\t\t\t\"name\": \"position\",\n";
-    file << "\t\t\t\"min\": [" << meta.bounding_box.min.x * 10 << ", " << meta.bounding_box.min.y * 10 << ", " << meta.bounding_box.min.z * 10 << "],\n";
-    file << "\t\t\t\"max\": [" << meta.bounding_box.max.x * 10 << ", " << meta.bounding_box.max.y * 10 << ", " << meta.bounding_box.max.z * 10 << "]\n";
+    if (meta.has_environment) {
+        file << "\t\t\t\"min\": [" << meta.env_bounds.pos_min.x << ", " << meta.env_bounds.pos_min.y << ", " << meta.env_bounds.pos_min.z << "],\n";
+        file << "\t\t\t\"max\": [" << meta.env_bounds.pos_max.x << ", " << meta.env_bounds.pos_max.y << ", " << meta.env_bounds.pos_max.z << "]\n";
+    } else {
+        file << "\t\t\t\"min\": [" << meta.bounding_box.min.x << ", " << meta.bounding_box.min.y << ", " << meta.bounding_box.min.z << "],\n";
+        file << "\t\t\t\"max\": [" << meta.bounding_box.max.x << ", " << meta.bounding_box.max.y << ", " << meta.bounding_box.max.z << "]\n";
+    }
     file << "\t\t},\n";
 
     // Normal
@@ -115,14 +120,24 @@ bool MetaWriter::write(const std::string& path, const MetaInfo& meta) {
 
     file << "\t\t{\n";
     file << "\t\t\t\"name\": \"envshcoef\",\n";
-    file << "\t\t\t\"min\": [" << meta.attr_ranges.sh_min.x << ", " << meta.attr_ranges.sh_min.y << ", " << meta.attr_ranges.sh_min.z << "],\n";
-    file << "\t\t\t\"max\": [" << meta.attr_ranges.sh_max.x << ", " << meta.attr_ranges.sh_max.y << ", " << meta.attr_ranges.sh_max.z << "]\n";
+    if (meta.has_environment) {
+        file << "\t\t\t\"min\": [" << meta.env_bounds.sh_min.x << ", " << meta.env_bounds.sh_min.y << ", " << meta.env_bounds.sh_min.z << "],\n";
+        file << "\t\t\t\"max\": [" << meta.env_bounds.sh_max.x << ", " << meta.env_bounds.sh_max.y << ", " << meta.env_bounds.sh_max.z << "]\n";
+    } else {
+        file << "\t\t\t\"min\": [" << meta.attr_ranges.sh_min.x << ", " << meta.attr_ranges.sh_min.y << ", " << meta.attr_ranges.sh_min.z << "],\n";
+        file << "\t\t\t\"max\": [" << meta.attr_ranges.sh_max.x << ", " << meta.attr_ranges.sh_max.y << ", " << meta.attr_ranges.sh_max.z << "]\n";
+    }
     file << "\t\t},\n";
 
     file << "\t\t{\n";
     file << "\t\t\t\"name\": \"envscale\",\n";
-    file << "\t\t\t\"min\": [" << meta.attr_ranges.scale_min.x << ", " << meta.attr_ranges.scale_min.y << ", " << meta.attr_ranges.scale_min.z << "],\n";
-    file << "\t\t\t\"max\": [" << meta.attr_ranges.scale_max.x << ", " << meta.attr_ranges.scale_max.y << ", " << meta.attr_ranges.scale_max.z << "]\n";
+    if (meta.has_environment) {
+        file << "\t\t\t\"min\": [" << meta.env_bounds.scale_min.x << ", " << meta.env_bounds.scale_min.y << ", " << meta.env_bounds.scale_min.z << "],\n";
+        file << "\t\t\t\"max\": [" << meta.env_bounds.scale_max.x << ", " << meta.env_bounds.scale_max.y << ", " << meta.env_bounds.scale_max.z << "]\n";
+    } else {
+        file << "\t\t\t\"min\": [" << meta.attr_ranges.scale_min.x << ", " << meta.attr_ranges.scale_min.y << ", " << meta.attr_ranges.scale_min.z << "],\n";
+        file << "\t\t\t\"max\": [" << meta.attr_ranges.scale_max.x << ", " << meta.attr_ranges.scale_max.y << ", " << meta.attr_ranges.scale_max.z << "]\n";
+    }
     file << "\t\t}\n";
 
     file << "\t]\n";
