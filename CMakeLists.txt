@@ -8,6 +8,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 add_executable(ply2lcc
     src/main.cpp
     src/ply_reader.cpp
+    src/compression.cpp
     external/miniply/miniply.cpp
 )
 
