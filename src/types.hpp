@@ -78,10 +78,13 @@ struct AttributeRanges {
         }
     }
 
-    void expand_sh(float val) {
-        // SH uses same min/max for all channels
-        if (val < sh_min.x) sh_min = Vec3f(val, val, val);
-        if (val > sh_max.x) sh_max = Vec3f(val, val, val);
+    void expand_sh(float r, float g, float b) {
+        sh_min.x = std::min(sh_min.x, r);
+        sh_min.y = std::min(sh_min.y, g);
+        sh_min.z = std::min(sh_min.z, b);
+        sh_max.x = std::max(sh_max.x, r);
+        sh_max.y = std::max(sh_max.y, g);
+        sh_max.z = std::max(sh_max.z, b);
     }
 
     void expand_opacity(float sigmoid_opacity) {

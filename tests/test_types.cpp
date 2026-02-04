@@ -123,16 +123,29 @@ TEST(AttributeRangesTest, ExpandScale) {
 
 TEST(AttributeRangesTest, ExpandSH) {
     AttributeRanges ranges;
-    ranges.expand_sh(1.5f);
-    EXPECT_FLOAT_EQ(ranges.sh_min.x, 1.5f);
+    // Test per-channel tracking: expand_sh(r, g, b)
+    ranges.expand_sh(1.5f, 1.0f, 2.0f);
+    EXPECT_FLOAT_EQ(ranges.sh_min.x, 1.5f);  // R
+    EXPECT_FLOAT_EQ(ranges.sh_min.y, 1.0f);  // G
+    EXPECT_FLOAT_EQ(ranges.sh_min.z, 2.0f);  // B
     EXPECT_FLOAT_EQ(ranges.sh_max.x, 1.5f);
+    EXPECT_FLOAT_EQ(ranges.sh_max.y, 1.0f);
+    EXPECT_FLOAT_EQ(ranges.sh_max.z, 2.0f);
 
-    ranges.expand_sh(-2.0f);
+    // Expand with different per-channel values
+    ranges.expand_sh(-2.0f, -1.5f, -3.0f);
     EXPECT_FLOAT_EQ(ranges.sh_min.x, -2.0f);
+    EXPECT_FLOAT_EQ(ranges.sh_min.y, -1.5f);
+    EXPECT_FLOAT_EQ(ranges.sh_min.z, -3.0f);
     EXPECT_FLOAT_EQ(ranges.sh_max.x, 1.5f);
+    EXPECT_FLOAT_EQ(ranges.sh_max.y, 1.0f);
+    EXPECT_FLOAT_EQ(ranges.sh_max.z, 2.0f);
 
-    ranges.expand_sh(3.0f);
+    // Expand max values per channel
+    ranges.expand_sh(3.0f, 2.5f, 4.0f);
     EXPECT_FLOAT_EQ(ranges.sh_max.x, 3.0f);
+    EXPECT_FLOAT_EQ(ranges.sh_max.y, 2.5f);
+    EXPECT_FLOAT_EQ(ranges.sh_max.z, 4.0f);
 }
 
 TEST(AttributeRangesTest, ExpandOpacity) {

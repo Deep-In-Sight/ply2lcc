@@ -124,8 +124,12 @@ TEST_F(IntegrationTest, FullConversionPipeline) {
         ranges.expand_scale(linear_scale);
         ranges.expand_opacity(sigmoid(s.opacity));
         if (header.has_sh) {
-            for (int i = 0; i < 45; ++i) {
-                ranges.expand_sh(s.f_rest[i]);
+            // f_rest has 45 coefficients: 15 bands × 3 channels (RGB interleaved)
+            for (int band = 0; band < 15; ++band) {
+                float r = s.f_rest[band * 3 + 0];
+                float g = s.f_rest[band * 3 + 1];
+                float b = s.f_rest[band * 3 + 2];
+                ranges.expand_sh(r, g, b);
             }
         }
     }
