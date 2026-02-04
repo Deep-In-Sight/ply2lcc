@@ -11,6 +11,7 @@
 #include "spatial_grid.hpp"
 #include "meta_writer.hpp"
 #include "path_resolution.hpp"
+#include "env_writer.hpp"
 
 namespace fs = std::filesystem;
 using namespace ply2lcc;
@@ -125,9 +126,18 @@ int main(int argc, char* argv[]) {
 
     // Check for environment.ply
     std::string env_path = iteration_dir + "/environment.ply";
+    std::vector<Splat> env_splats;
+    EnvBounds env_bounds;
     bool has_env = fs::exists(env_path);
+
     if (has_env) {
         std::cout << "Found environment.ply\n";
+        if (!EnvWriter::read_environment(env_path, env_splats, env_bounds)) {
+            std::cerr << "Warning: Failed to read environment.ply\n";
+            has_env = false;
+        } else {
+            std::cout << "  " << env_splats.size() << " environment splats\n";
+        }
     }
 
     // Phase 1: Read all PLYs and compute global bounds
@@ -213,6 +223,14 @@ int main(int argc, char* argv[]) {
 
     writer.finalize();
 
+    // Write Environment.bin if environment data exists
+    if (has_env && !env_splats.empty()) {
+        std::cout << "\nWriting Environment.bin...\n";
+        if (!EnvWriter::write_environment_bin(lcc_output_dir + "/Environment.bin", env_splats, env_bounds)) {
+            std::cerr << "Warning: Failed to write Environment.bin\n";
+        }
+    }
+
     // Phase 4: Write Index.bin
     std::cout << "\nPhase 4: Writing Index.bin...\n";
     grid.write_index_bin(lcc_output_dir + "/Index.bin", writer.get_units(), ply_files.size());
@@ -232,6 +250,11 @@ int main(int argc, char* argv[]) {
     meta.file_type = has_sh ? "Quality" : "Portable";
     meta.attr_ranges = global_ranges;
 
+    meta.has_environment = has_env && !env_splats.empty();
+    if (meta.has_environment) {
+        meta.env_bounds = env_bounds;
+    }
+
     MetaWriter::write(lcc_output_dir + "/meta.lcc", meta);
 
     std::cout << "\nConversion complete!\n";
@@ -242,6 +265,9 @@ int main(int argc, char* argv[]) {
     std::cout << "  " << lcc_output_dir << "/Data.bin\n";
     if (has_sh) {
         std::cout << "  " << lcc_output_dir << "/Shcoef.bin\n";
+    }
+    if (has_env) {
+        std::cout << "  " << lcc_output_dir << "/Environment.bin\n";
     }
 
     return 0;
