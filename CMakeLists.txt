@@ -63,8 +63,13 @@ if(BUILD_TESTS)
     add_executable(test_integration tests/test_integration.cpp)
     target_link_libraries(test_integration ply2lcc_lib GTest::gtest_main)
 
+    # Path resolution tests
+    add_executable(test_path_resolution tests/test_path_resolution.cpp)
+    target_link_libraries(test_path_resolution ply2lcc_lib GTest::gtest_main)
+
     include(GoogleTest)
     gtest_discover_tests(test_compression)
     gtest_discover_tests(test_types)
     gtest_discover_tests(test_integration)
+    gtest_discover_tests(test_path_resolution)
 endif()
