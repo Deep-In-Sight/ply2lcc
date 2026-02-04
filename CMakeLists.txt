@@ -9,6 +9,7 @@ add_executable(ply2lcc
     src/main.cpp
     src/ply_reader.cpp
     src/compression.cpp
+    src/lcc_writer.cpp
     external/miniply/miniply.cpp
 )
 
