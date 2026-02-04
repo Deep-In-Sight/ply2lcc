@@ -3,6 +3,7 @@
 #include <filesystem>
 
 #include "types.hpp"
+#include "ply_reader.hpp"
 
 namespace fs = std::filesystem;
 
@@ -50,6 +51,26 @@ int main(int argc, char* argv[]) {
               << "Output: " << output_dir << "\n"
               << "Mode: " << (single_lod ? "single-lod" : "multi-lod") << "\n"
               << "Cell size: " << cell_size_x << " x " << cell_size_y << "\n";
+
+    // Test PLY reading
+    std::string ply_path = input_dir + "/point_cloud.ply";
+    if (!fs::exists(ply_path)) {
+        ply_path = input_dir + "/point_cloud_2.ply";  // Fallback for testing
+    }
+
+    ply2lcc::PLYHeader header;
+    std::vector<ply2lcc::Splat> splats;
+
+    std::cout << "Reading: " << ply_path << "\n";
+    if (!ply2lcc::PLYReader::read_splats(ply_path, splats, header)) {
+        std::cerr << "Failed to read PLY file\n";
+        return 1;
+    }
+
+    std::cout << "Loaded " << splats.size() << " splats\n";
+    std::cout << "BBox: (" << header.bbox.min.x << ", " << header.bbox.min.y << ", " << header.bbox.min.z << ") - ("
+              << header.bbox.max.x << ", " << header.bbox.max.y << ", " << header.bbox.max.z << ")\n";
+    std::cout << "Has SH: " << (header.has_sh ? "yes" : "no") << "\n";
 
     return 0;
 }
