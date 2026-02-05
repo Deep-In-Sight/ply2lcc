@@ -15,6 +15,9 @@ public:
     // Assign a splat to a grid cell
     uint32_t get_cell_index(const Vec3f& pos) const;
 
+    // Compute cell index from position (thread-safe, no mutation)
+    uint32_t compute_cell_index(const Vec3f& pos) const { return get_cell_index(pos); }
+
     // Add splat index to the grid
     void add_splat(size_t lod, const Vec3f& pos, size_t splat_idx);
 
