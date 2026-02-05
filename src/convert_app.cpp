@@ -21,6 +21,35 @@ namespace ply2lcc {
 ConvertApp::ConvertApp(int argc, char** argv)
     : argc_(argc), argv_(argv) {}
 
+ConvertApp::ConvertApp(const ConvertConfig& config)
+    : argc_(0), argv_(nullptr)
+    , input_path_(config.input_path)
+    , output_dir_(config.output_dir)
+    , cell_size_x_(config.cell_size_x)
+    , cell_size_y_(config.cell_size_y)
+    , single_lod_(config.single_lod)
+{
+    // Derive input_dir_ and base_name_ from input_path_
+    fs::path p(input_path_);
+    if (fs::is_directory(p)) {
+        input_dir_ = input_path_;
+        base_name_ = "point_cloud";
+    } else {
+        input_dir_ = p.parent_path().string();
+        base_name_ = p.stem().string();
+    }
+}
+
+void ConvertApp::setProgressCallback(ProgressCallback cb) {
+    progress_cb_ = std::move(cb);
+}
+
+void ConvertApp::reportProgress(int percent, const std::string& msg) {
+    if (progress_cb_) {
+        progress_cb_(percent, msg);
+    }
+}
+
 void ConvertApp::run() {
     parseArgs();
     findPlyFiles();

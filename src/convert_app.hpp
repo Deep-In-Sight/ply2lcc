@@ -14,9 +14,12 @@ namespace ply2lcc {
 class ConvertApp {
 public:
     ConvertApp(int argc, char** argv);
+    ConvertApp(const ConvertConfig& config);  // Constructor for GUI
+    void setProgressCallback(ProgressCallback cb);
     void run();
 
 private:
+    void reportProgress(int percent, const std::string& msg);
     void parseArgs();
     void findPlyFiles();
     void validateOutput();
@@ -31,6 +34,7 @@ private:
 
     int argc_;
     char** argv_;
+    ProgressCallback progress_cb_;
 
     // Config
     std::string input_path_;
