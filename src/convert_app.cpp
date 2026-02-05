@@ -248,24 +248,25 @@ void ConvertApp::buildSpatialGridParallel() {
 }
 
 void ConvertApp::encodeAllLods() {
-    std::cout << "\nPhase 3: Encoding splats (parallel)...\n";
+    std::cout << "\nPhase 2: Encoding splats (parallel)...\n";
 
-    // Get all cells as a vector for parallel iteration
+    // Prepare cells vector for parallel iteration
     const auto& cells_map = grid_->get_cells();
     std::vector<std::pair<uint32_t, const GridCell*>> cells_vec;
     cells_vec.reserve(cells_map.size());
     for (const auto& [idx, cell] : cells_map) {
         cells_vec.emplace_back(idx, &cell);
+        encoded_cells_[idx].resize(lod_files_.size());
     }
 
-    // Initialize encoded_cells_ for all cells and LODs
-    for (const auto& [cell_idx, cell_ptr] : cells_vec) {
-        encoded_cells_[cell_idx].resize(lod_files_.size());
-    }
-
-    // Process each LOD
     for (size_t lod = 0; lod < lod_files_.size(); ++lod) {
         std::cout << "  Encoding LOD" << lod << "...\n";
+
+        // Reopen SplatBuffer for this LOD
+        SplatBuffer splats;
+        if (!splats.initialize(lod_files_[lod])) {
+            throw std::runtime_error("Failed to reopen " + lod_files_[lod]);
+        }
 
         #pragma omp parallel for schedule(dynamic)
         for (size_t i = 0; i < cells_vec.size(); ++i) {
@@ -281,7 +282,8 @@ void ConvertApp::encodeAllLods() {
             }
 
             for (size_t idx : cell->splat_indices[lod]) {
-                encode_splat(all_splats_[lod][idx], enc.data, enc.shcoef, global_ranges_, has_sh_);
+                SplatView sv = splats[idx];
+                encode_splat_view(sv, enc.data, enc.shcoef, global_ranges_, has_sh_);
             }
             enc.count = cell->splat_indices[lod].size();
 
