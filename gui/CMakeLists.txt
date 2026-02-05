@@ -1,6 +1,13 @@
 cmake_minimum_required(VERSION 3.16)
 
-find_package(Qt6 COMPONENTS Widgets REQUIRED)
+# Try Qt6 first, fall back to Qt5
+find_package(Qt6 COMPONENTS Widgets QUIET)
+if(NOT Qt6_FOUND)
+    find_package(Qt5 COMPONENTS Widgets REQUIRED)
+    set(QT_VERSION_MAJOR 5)
+else()
+    set(QT_VERSION_MAJOR 6)
+endif()
 
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
@@ -15,7 +22,7 @@ add_executable(ply2lcc-gui
 )
 
 target_link_libraries(ply2lcc-gui PRIVATE
-    Qt6::Widgets
+    Qt${QT_VERSION_MAJOR}::Widgets
     ply2lcc_lib
 )
 
