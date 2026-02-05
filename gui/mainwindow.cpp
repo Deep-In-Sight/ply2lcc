@@ -77,14 +77,12 @@ void MainWindow::setupUi() {
     // Environment row
     auto* envLayout = new QHBoxLayout();
     m_includeEnvCheck = new QCheckBox("Include environment:");
-    m_includeEnvCheck->setChecked(false);
+    m_includeEnvCheck->setChecked(true);
     envLayout->addWidget(m_includeEnvCheck);
     m_envPathEdit = new QLineEdit();
     m_envPathEdit->setPlaceholderText("Path to environment.ply...");
-    m_envPathEdit->setEnabled(false);
     envLayout->addWidget(m_envPathEdit, 1);
     m_browseEnvBtn = new QPushButton("Browse...");
-    m_browseEnvBtn->setEnabled(false);
     envLayout->addWidget(m_browseEnvBtn);
     settingsLayout->addLayout(envLayout);
 
@@ -95,10 +93,8 @@ void MainWindow::setupUi() {
     collisionLayout->addWidget(m_includeCollisionCheck);
     m_collisionPathEdit = new QLineEdit();
     m_collisionPathEdit->setPlaceholderText("Path to collision.ply...");
-    m_collisionPathEdit->setEnabled(false);
     collisionLayout->addWidget(m_collisionPathEdit, 1);
     m_browseCollisionBtn = new QPushButton("Browse...");
-    m_browseCollisionBtn->setEnabled(false);
     collisionLayout->addWidget(m_browseCollisionBtn);
     settingsLayout->addLayout(collisionLayout);
 
@@ -141,28 +137,8 @@ void MainWindow::setupUi() {
     connect(m_inputPathEdit, &QLineEdit::textChanged, this, &MainWindow::onInputPathChanged);
     connect(m_outputDirEdit, &QLineEdit::textChanged, this, &MainWindow::updateConvertButtonState);
 
-    // Environment checkbox and path
-    connect(m_includeEnvCheck, &QCheckBox::toggled, this, [this](bool checked) {
-        m_envPathEdit->setEnabled(checked);
-        m_browseEnvBtn->setEnabled(checked);
-        if (checked && m_envPathEdit->text().isEmpty()) {
-            // Set default path
-            QString defaultPath = QDir(getInputDir()).filePath("environment.ply");
-            m_envPathEdit->setText(defaultPath);
-        }
-    });
+    // Environment and collision path change handlers
     connect(m_envPathEdit, &QLineEdit::textChanged, this, &MainWindow::onEnvPathChanged);
-
-    // Collision checkbox and path
-    connect(m_includeCollisionCheck, &QCheckBox::toggled, this, [this](bool checked) {
-        m_collisionPathEdit->setEnabled(checked);
-        m_browseCollisionBtn->setEnabled(checked);
-        if (checked && m_collisionPathEdit->text().isEmpty()) {
-            // Set default path
-            QString defaultPath = QDir(getInputDir()).filePath("collision.ply");
-            m_collisionPathEdit->setText(defaultPath);
-        }
-    });
     connect(m_collisionPathEdit, &QLineEdit::textChanged, this, &MainWindow::onCollisionPathChanged);
 }
 
@@ -245,23 +221,18 @@ void MainWindow::onInputPathChanged(const QString& path) {
         return;
     }
 
-    // Update environment default path if checkbox is checked but path is empty or was default
-    if (m_includeEnvCheck->isChecked()) {
-        QString defaultEnvPath = QDir(dir).filePath("environment.ply");
-        QString currentEnvPath = m_envPathEdit->text();
-        // Update path if it's empty or if it was pointing to a different directory's default
-        if (currentEnvPath.isEmpty() || currentEnvPath.endsWith("/environment.ply")) {
-            m_envPathEdit->setText(defaultEnvPath);
-        }
+    // Update environment default path if empty or was a default path
+    QString defaultEnvPath = QDir(dir).filePath("environment.ply");
+    QString currentEnvPath = m_envPathEdit->text();
+    if (currentEnvPath.isEmpty() || currentEnvPath.endsWith("/environment.ply")) {
+        m_envPathEdit->setText(defaultEnvPath);
     }
 
-    // Update collision default path if checkbox is checked but path is empty or was default
-    if (m_includeCollisionCheck->isChecked()) {
-        QString defaultCollPath = QDir(dir).filePath("collision.ply");
-        QString currentCollPath = m_collisionPathEdit->text();
-        if (currentCollPath.isEmpty() || currentCollPath.endsWith("/collision.ply")) {
-            m_collisionPathEdit->setText(defaultCollPath);
-        }
+    // Update collision default path if empty or was a default path
+    QString defaultCollPath = QDir(dir).filePath("collision.ply");
+    QString currentCollPath = m_collisionPathEdit->text();
+    if (currentCollPath.isEmpty() || currentCollPath.endsWith("/collision.ply")) {
+        m_collisionPathEdit->setText(defaultCollPath);
     }
 }
 
@@ -308,13 +279,13 @@ void MainWindow::setInputsEnabled(bool enabled) {
 
     // Environment controls
     m_includeEnvCheck->setEnabled(enabled);
-    m_envPathEdit->setEnabled(enabled && m_includeEnvCheck->isChecked());
-    m_browseEnvBtn->setEnabled(enabled && m_includeEnvCheck->isChecked());
+    m_envPathEdit->setEnabled(enabled);
+    m_browseEnvBtn->setEnabled(enabled);
 
     // Collision controls
     m_includeCollisionCheck->setEnabled(enabled);
-    m_collisionPathEdit->setEnabled(enabled && m_includeCollisionCheck->isChecked());
-    m_browseCollisionBtn->setEnabled(enabled && m_includeCollisionCheck->isChecked());
+    m_collisionPathEdit->setEnabled(enabled);
+    m_browseCollisionBtn->setEnabled(enabled);
 
     m_convertBtn->setEnabled(enabled && !m_inputPathEdit->text().isEmpty() &&
                              !m_outputDirEdit->text().isEmpty());
