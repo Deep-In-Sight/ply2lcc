@@ -160,6 +160,40 @@ TEST(AttributeRangesTest, ExpandOpacity) {
     EXPECT_FLOAT_EQ(ranges.opacity_max, 0.9f);
 }
 
+TEST(AttributeRangesTest, Merge) {
+    AttributeRanges a, b;
+
+    a.expand_scale(Vec3f(1.0f, 2.0f, 3.0f));
+    a.expand_opacity(0.5f);
+    a.expand_sh(0.1f, 0.2f, 0.3f);
+
+    b.expand_scale(Vec3f(0.5f, 3.0f, 2.0f));
+    b.expand_opacity(0.8f);
+    b.expand_sh(-0.1f, 0.4f, 0.1f);
+
+    a.merge(b);
+
+    // Scale: min of mins, max of maxes
+    EXPECT_FLOAT_EQ(a.scale_min.x, 0.5f);
+    EXPECT_FLOAT_EQ(a.scale_min.y, 2.0f);
+    EXPECT_FLOAT_EQ(a.scale_min.z, 2.0f);
+    EXPECT_FLOAT_EQ(a.scale_max.x, 1.0f);
+    EXPECT_FLOAT_EQ(a.scale_max.y, 3.0f);
+    EXPECT_FLOAT_EQ(a.scale_max.z, 3.0f);
+
+    // Opacity
+    EXPECT_FLOAT_EQ(a.opacity_min, 0.5f);
+    EXPECT_FLOAT_EQ(a.opacity_max, 0.8f);
+
+    // SH per channel
+    EXPECT_FLOAT_EQ(a.sh_min.x, -0.1f);
+    EXPECT_FLOAT_EQ(a.sh_min.y, 0.2f);
+    EXPECT_FLOAT_EQ(a.sh_min.z, 0.1f);
+    EXPECT_FLOAT_EQ(a.sh_max.x, 0.1f);
+    EXPECT_FLOAT_EQ(a.sh_max.y, 0.4f);
+    EXPECT_FLOAT_EQ(a.sh_max.z, 0.3f);
+}
+
 // GridCell tests
 TEST(GridCellTest, Constructor) {
     GridCell cell(0x00010002, 3);

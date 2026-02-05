@@ -15,9 +15,29 @@ struct Vec3f {
 
     Vec3f() : x(0), y(0), z(0) {}
     Vec3f(float x_, float y_, float z_) : x(x_), y(y_), z(z_) {}
+    explicit Vec3f(const float* p) : x(p[0]), y(p[1]), z(p[2]) {}
 
     float& operator[](int i) { return (&x)[i]; }
     float operator[](int i) const { return (&x)[i]; }
+
+    static const Vec3f& from_ptr(const float* p) {
+        return *reinterpret_cast<const Vec3f*>(p);
+    }
+};
+
+struct Quat {
+    float w, x, y, z;  // w first (scalar)
+
+    Quat() : w(1), x(0), y(0), z(0) {}
+    Quat(float w_, float x_, float y_, float z_) : w(w_), x(x_), y(y_), z(z_) {}
+    explicit Quat(const float* p) : w(p[0]), x(p[1]), y(p[2]), z(p[3]) {}
+
+    float& operator[](int i) { return (&w)[i]; }
+    float operator[](int i) const { return (&w)[i]; }
+
+    static const Quat& from_ptr(const float* p) {
+        return *reinterpret_cast<const Quat*>(p);
+    }
 };
 
 struct BBox {
@@ -91,6 +111,17 @@ struct AttributeRanges {
         if (sigmoid_opacity < opacity_min) opacity_min = sigmoid_opacity;
         if (sigmoid_opacity > opacity_max) opacity_max = sigmoid_opacity;
     }
+
+    void merge(const AttributeRanges& other) {
+        for (int i = 0; i < 3; ++i) {
+            scale_min[i] = std::min(scale_min[i], other.scale_min[i]);
+            scale_max[i] = std::max(scale_max[i], other.scale_max[i]);
+            sh_min[i] = std::min(sh_min[i], other.sh_min[i]);
+            sh_max[i] = std::max(sh_max[i], other.sh_max[i]);
+        }
+        opacity_min = std::min(opacity_min, other.opacity_min);
+        opacity_max = std::max(opacity_max, other.opacity_max);
+    }
 };
 
 struct EnvBounds {
@@ -135,6 +166,12 @@ struct GridCell {
 
     GridCell(uint32_t idx, size_t num_lods)
         : index(idx), splat_indices(num_lods) {}
+};
+
+struct EncodedCell {
+    std::vector<uint8_t> data;    // 32 bytes × num_splats
+    std::vector<uint8_t> shcoef;  // 64 bytes × num_splats
+    size_t count = 0;
 };
 
 struct ConvertConfig {
