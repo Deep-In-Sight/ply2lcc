@@ -121,9 +121,9 @@ void MainWindow::setupUi() {
 void MainWindow::browseInput() {
     QString filePath = QFileDialog::getOpenFileName(
         this,
-        "Select PLY File",
+        "Select Point Cloud PLY File",
         QString(),
-        "PLY Files (*.ply);;All Files (*)");
+        "Point Cloud (point_cloud*.ply);;All Files (*)");
     if (!filePath.isEmpty()) {
         m_inputPathEdit->setText(filePath);
     }
