@@ -145,51 +145,6 @@ void encode_sh_coefficients(const float f_rest[45],
     out[15] = 0;
 }
 
-void encode_splat(const Splat& splat,
-                  std::vector<uint8_t>& data_buf,
-                  std::vector<uint8_t>& sh_buf,
-                  const AttributeRanges& ranges,
-                  bool has_sh) {
-    // Reserve and append 32 bytes for data
-    size_t data_offset = data_buf.size();
-    data_buf.resize(data_offset + 32);
-    uint8_t* data_ptr = data_buf.data() + data_offset;
-
-    // Position (12 bytes)
-    std::memcpy(data_ptr, &splat.pos.x, 12);
-    data_ptr += 12;
-
-    // Color RGBA (4 bytes)
-    uint32_t color = encode_color(splat.f_dc, splat.opacity);
-    std::memcpy(data_ptr, &color, 4);
-    data_ptr += 4;
-
-    // Scale (6 bytes)
-    uint16_t scale_enc[3];
-    encode_scale(splat.scale, ranges.scale_min, ranges.scale_max, scale_enc);
-    std::memcpy(data_ptr, scale_enc, 6);
-    data_ptr += 6;
-
-    // Rotation (4 bytes)
-    uint32_t rot_enc = encode_rotation(splat.rot);
-    std::memcpy(data_ptr, &rot_enc, 4);
-    data_ptr += 4;
-
-    // Normal (6 bytes) - zeros for 3DGS
-    uint16_t normal_enc[3] = {0, 0, 0};
-    std::memcpy(data_ptr, normal_enc, 6);
-
-    // SH coefficients (64 bytes)
-    if (has_sh) {
-        size_t sh_offset = sh_buf.size();
-        sh_buf.resize(sh_offset + 64);
-        uint8_t* sh_ptr = sh_buf.data() + sh_offset;
-        uint32_t sh_enc[16];
-        encode_sh_coefficients(splat.f_rest, ranges.sh_min.x, ranges.sh_max.x, sh_enc);
-        std::memcpy(sh_ptr, sh_enc, 64);
-    }
-}
-
 void encode_splat_view(const SplatView& sv,
                        std::vector<uint8_t>& data_buf,
                        std::vector<uint8_t>& sh_buf,

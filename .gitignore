@@ -4,6 +4,8 @@ build/
 # Test data (user must provide)
 test_data/
 
+LCCWhitepaper/
+
 # IDE
 .vscode/
 .idea/

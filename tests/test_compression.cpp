@@ -79,9 +79,10 @@ TEST(CompressionTest, EncodeRotationIdentity) {
     float rot[4] = {1.0f, 0.0f, 0.0f, 0.0f};
     uint32_t encoded = encode_rotation(rot);
 
-    // w is largest, so idx should be 0 (stored in bits 30-31)
+    // LCC uses (x,y,z,w) order, so w is at position 3
+    // When w is largest, idx should be 3
     uint32_t idx = (encoded >> 30) & 0x3;
-    EXPECT_EQ(idx, 0);
+    EXPECT_EQ(idx, 3);
 
     // x, y, z are all 0, which maps to 0.5 in normalized space
     uint32_t p0 = encoded & 0x3FF;
@@ -97,9 +98,9 @@ TEST(CompressionTest, EncodeRotationNormalization) {
     float rot[4] = {2.0f, 0.0f, 0.0f, 0.0f};
     uint32_t encoded = encode_rotation(rot);
 
-    // Should be same as identity after normalization
+    // Should be same as identity after normalization (w largest -> idx 3)
     uint32_t idx = (encoded >> 30) & 0x3;
-    EXPECT_EQ(idx, 0);
+    EXPECT_EQ(idx, 3);
 }
 
 // Test encode_sh_triplet

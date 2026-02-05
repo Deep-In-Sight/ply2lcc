@@ -33,19 +33,12 @@ void encode_sh_coefficients(const float f_rest[45],
                            float sh_min, float sh_max,
                            uint32_t out[16]);
 
-// Encode a single splat, appending to data and SH buffers
-// data_buf: receives 32 bytes (position, color, scale, rotation, normal)
-// sh_buf: receives 64 bytes if has_sh (SH coefficients)
-void encode_splat(const struct Splat& splat,
-                  std::vector<uint8_t>& data_buf,
-                  std::vector<uint8_t>& sh_buf,
-                  const AttributeRanges& ranges,
-                  bool has_sh);
-
 // Forward declaration
 class SplatView;
 
 // Encode a single splat from SplatView, appending to buffers
+// data_buf: receives 32 bytes (position, color, scale, rotation, normal)
+// sh_buf: receives 64 bytes if has_sh (SH coefficients)
 void encode_splat_view(const SplatView& sv,
                        std::vector<uint8_t>& data_buf,
                        std::vector<uint8_t>& sh_buf,

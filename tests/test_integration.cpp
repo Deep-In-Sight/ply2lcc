@@ -1,8 +1,7 @@
 #include <gtest/gtest.h>
 #include <filesystem>
 #include "types.hpp"
-#include "ply_reader.hpp"
-#include "lcc_writer.hpp"
+#include "splat_buffer.hpp"
 #include "spatial_grid.hpp"
 #include "meta_writer.hpp"
 #include "compression.hpp"
@@ -54,112 +53,27 @@ protected:
 };
 
 TEST_F(IntegrationTest, ReadPLYFile) {
-    PLYHeader header;
-    std::vector<Splat> splats;
+    SplatBuffer buffer;
+    ASSERT_TRUE(buffer.initialize(test_ply_file_)) << buffer.error();
 
-    ASSERT_TRUE(PLYReader::read_splats(test_ply_file_, splats, header));
+    std::vector<Splat> splats = buffer.to_vector();
     EXPECT_GT(splats.size(), 0u);
-    EXPECT_GT(header.vertex_count, 0u);
-    EXPECT_EQ(splats.size(), header.vertex_count);
+    EXPECT_EQ(splats.size(), buffer.size());
 }
 
 TEST_F(IntegrationTest, PLYBoundingBox) {
-    PLYHeader header;
-    std::vector<Splat> splats;
-    ASSERT_TRUE(PLYReader::read_splats(test_ply_file_, splats, header));
+    SplatBuffer buffer;
+    ASSERT_TRUE(buffer.initialize(test_ply_file_)) << buffer.error();
+
+    BBox bbox = buffer.compute_bbox();
 
     // BBox should be valid (min < max)
-    EXPECT_LT(header.bbox.min.x, header.bbox.max.x);
-    EXPECT_LT(header.bbox.min.y, header.bbox.max.y);
-    EXPECT_LT(header.bbox.min.z, header.bbox.max.z);
+    EXPECT_LT(bbox.min.x, bbox.max.x);
+    EXPECT_LT(bbox.min.y, bbox.max.y);
+    EXPECT_LT(bbox.min.z, bbox.max.z);
 }
 
-TEST_F(IntegrationTest, FullConversionPipeline) {
-    // Create temp output directory
-    std::string output_dir = "/tmp/ply2lcc_test_" + std::to_string(std::time(nullptr));
-    fs::create_directories(output_dir);
-
-    // Read PLY
-    PLYHeader header;
-    std::vector<Splat> splats;
-    ASSERT_TRUE(PLYReader::read_splats(test_ply_file_, splats, header));
-
-    // Compute ranges
-    AttributeRanges ranges;
-    int bands_per_channel = (header.has_sh && header.num_f_rest > 0) ? header.num_f_rest / 3 : 0;
-
-    for (const auto& s : splats) {
-        Vec3f linear_scale(std::exp(s.scale.x), std::exp(s.scale.y), std::exp(s.scale.z));
-        ranges.expand_scale(linear_scale);
-        ranges.expand_opacity(sigmoid(s.opacity));
-        if (header.has_sh && bands_per_channel > 0) {
-            for (int band = 0; band < bands_per_channel; ++band) {
-                float r = s.f_rest[band];
-                float g = s.f_rest[band + bands_per_channel];
-                float b = s.f_rest[band + 2 * bands_per_channel];
-                ranges.expand_sh(r, g, b);
-            }
-        }
-    }
-
-    // Build grid
-    SpatialGrid grid(30.0f, 30.0f, header.bbox, 1);
-    for (size_t i = 0; i < splats.size(); ++i) {
-        grid.add_splat(0, splats[i].pos, i);
-    }
-    EXPECT_GT(grid.get_cells().size(), 0u);
-
-    // Write LCC
-    LCCWriter writer(output_dir, ranges, 1, header.has_sh);
-    for (const auto& [cell_index, cell] : grid.get_cells()) {
-        if (cell.splat_indices[0].empty()) continue;
-
-        std::vector<Splat> cell_splats;
-        for (size_t idx : cell.splat_indices[0]) {
-            cell_splats.push_back(splats[idx]);
-        }
-        ASSERT_TRUE(writer.write_splats(cell_index, 0, cell_splats));
-    }
-    writer.finalize();
-
-    // Write index.bin
-    ASSERT_TRUE(grid.write_index_bin(output_dir + "/index.bin", writer.get_units(), 1));
-
-    // Write meta.lcc
-    MetaInfo meta;
-    meta.guid = MetaWriter::generate_guid();
-    meta.total_splats = writer.total_splats();
-    meta.total_levels = 1;
-    meta.cell_length_x = 30.0f;
-    meta.cell_length_y = 30.0f;
-    meta.index_data_size = 20;
-    meta.splats_per_lod = {splats.size()};
-    meta.bounding_box = header.bbox;
-    meta.file_type = header.has_sh ? "Quality" : "Portable";
-    meta.attr_ranges = ranges;
-    ASSERT_TRUE(MetaWriter::write(output_dir + "/meta.lcc", meta));
-
-    // Verify output files exist
-    EXPECT_TRUE(fs::exists(output_dir + "/data.bin"));
-    EXPECT_TRUE(fs::exists(output_dir + "/index.bin"));
-    EXPECT_TRUE(fs::exists(output_dir + "/meta.lcc"));
-    if (header.has_sh) {
-        EXPECT_TRUE(fs::exists(output_dir + "/shcoef.bin"));
-    }
-
-    // Verify data.bin size
-    auto data_size = fs::file_size(output_dir + "/data.bin");
-    EXPECT_EQ(data_size, splats.size() * 32);
-
-    // Verify shcoef.bin size if exists
-    if (header.has_sh) {
-        auto sh_size = fs::file_size(output_dir + "/shcoef.bin");
-        EXPECT_EQ(sh_size, splats.size() * 64);
-    }
-
-    // Cleanup
-    fs::remove_all(output_dir);
-}
+// NOTE: FullConversionPipeline test removed - use ConvertApp for end-to-end testing
 
 TEST_F(IntegrationTest, CompareWithReferenceLCC) {
     if (!fs::exists(test_lcc_dir_)) {

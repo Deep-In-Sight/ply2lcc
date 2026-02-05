@@ -25,18 +25,6 @@ uint32_t SpatialGrid::get_cell_index(const Vec3f& pos) const {
     return (static_cast<uint32_t>(cell_y) << 16) | static_cast<uint32_t>(cell_x);
 }
 
-void SpatialGrid::add_splat(size_t lod, const Vec3f& pos, size_t splat_idx) {
-    uint32_t index = get_cell_index(pos);
-
-    auto it = cells_.find(index);
-    if (it == cells_.end()) {
-        auto result = cells_.emplace(index, GridCell(index, num_lods_));
-        result.first->second.splat_indices[lod].push_back(splat_idx);
-    } else {
-        it->second.splat_indices[lod].push_back(splat_idx);
-    }
-}
-
 void SpatialGrid::merge(const ThreadLocalGrid& local, size_t lod) {
     for (const auto& [cell_id, indices] : local.cell_indices) {
         auto it = cells_.find(cell_id);

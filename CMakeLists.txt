@@ -5,12 +5,14 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+find_package(OpenMP REQUIRED)
+
 add_executable(ply2lcc
     src/main.cpp
     src/convert_app.cpp
-    src/ply_reader.cpp
+    src/splat_buffer.cpp
+    src/ply_reader_mmap.cpp
     src/compression.cpp
-    src/lcc_writer.cpp
     src/spatial_grid.cpp
     src/meta_writer.cpp
     src/env_writer.cpp
@@ -26,6 +28,8 @@ target_include_directories(ply2lcc PRIVATE
 target_compile_options(ply2lcc PRIVATE
     $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall -Wextra -O2>
 )
+
+target_link_libraries(ply2lcc PRIVATE OpenMP::OpenMP_CXX)
 
 # Testing
 option(BUILD_TESTS "Build unit tests" ON)
@@ -44,9 +48,9 @@ if(BUILD_TESTS)
     # Create a library for the converter code (to link with tests)
     add_library(ply2lcc_lib STATIC
         src/convert_app.cpp
-        src/ply_reader.cpp
+        src/splat_buffer.cpp
+        src/ply_reader_mmap.cpp
         src/compression.cpp
-        src/lcc_writer.cpp
         src/spatial_grid.cpp
         src/meta_writer.cpp
         src/env_writer.cpp
@@ -57,6 +61,7 @@ if(BUILD_TESTS)
         ${CMAKE_SOURCE_DIR}/src
         ${CMAKE_SOURCE_DIR}/external
     )
+    target_link_libraries(ply2lcc_lib PUBLIC OpenMP::OpenMP_CXX)
 
     # Unit tests
     add_executable(test_compression tests/test_compression.cpp)

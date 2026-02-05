@@ -18,9 +18,6 @@ public:
     // Compute cell index from position (thread-safe, no mutation)
     uint32_t compute_cell_index(const Vec3f& pos) const { return get_cell_index(pos); }
 
-    // Add splat index to the grid
-    void add_splat(size_t lod, const Vec3f& pos, size_t splat_idx);
-
     // Merge a thread-local grid into this grid
     void merge(const ThreadLocalGrid& local, size_t lod);
 
@@ -31,9 +28,6 @@ public:
     bool write_index_bin(const std::string& path,
                          const std::vector<LCCUnitInfo>& units,
                          size_t num_lods) const;
-
-    float cell_size_x() const { return cell_size_x_; }
-    float cell_size_y() const { return cell_size_y_; }
 
 private:
     float cell_size_x_;

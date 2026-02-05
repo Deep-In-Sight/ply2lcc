@@ -1,23 +1,26 @@
 #include "env_writer.hpp"
-#include "ply_reader.hpp"
+#include "splat_buffer.hpp"
 #include "compression.hpp"
 #include <fstream>
 #include <cmath>
 #include <cstring>
+#include <algorithm>
 
 namespace ply2lcc {
 
 bool EnvWriter::read_environment(const std::string& env_ply_path,
                                  std::vector<Splat>& splats,
                                  EnvBounds& bounds) {
-    PLYHeader header;
-    if (!PLYReader::read_splats(env_ply_path, splats, header)) {
+    SplatBuffer buffer;
+    if (!buffer.initialize(env_ply_path)) {
         return false;
     }
 
+    splats = buffer.to_vector();
+
     // Compute bands per channel from num_f_rest
-    // f_rest layout (grouped by channel): [R0..Rn, G0..Gn, B0..Bn]
-    int bands_per_channel = (header.has_sh && header.num_f_rest > 0) ? header.num_f_rest / 3 : 0;
+    int num_f_rest = buffer.num_f_rest();
+    int bands_per_channel = (num_f_rest > 0) ? num_f_rest / 3 : 0;
 
     // Compute bounds from splats
     for (const auto& s : splats) {
