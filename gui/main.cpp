@@ -30,12 +30,9 @@ int main(int argc, char* argv[]) {
             QObject::connect(worker, &ConvertWorker::finished,
                            &window, &MainWindow::onConversionFinished);
 
-            // Clean up worker when done - wait for thread to finish first
-            QObject::connect(worker, &ConvertWorker::finished,
-                           [worker](bool, const QString&) {
-                               worker->wait();
-                               worker->deleteLater();
-                           });
+            // Clean up worker when thread actually finishes (QThread::finished is emitted after run() returns)
+            QObject::connect(worker, &QThread::finished,
+                           worker, &QObject::deleteLater);
 
             worker->start();
         });
