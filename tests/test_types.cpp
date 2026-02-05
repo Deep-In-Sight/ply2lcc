@@ -227,3 +227,17 @@ TEST(ConvertConfigTest, DefaultValues) {
     EXPECT_FLOAT_EQ(config.cell_size_x, 30.0f);
     EXPECT_FLOAT_EQ(config.cell_size_y, 30.0f);
 }
+
+// ThreadLocalGrid tests
+TEST(ThreadLocalGridTest, AddAndAccess) {
+    ThreadLocalGrid grid;
+
+    grid.cell_indices[0x00010002].push_back(100);
+    grid.cell_indices[0x00010002].push_back(200);
+    grid.cell_indices[0x00030004].push_back(300);
+
+    EXPECT_EQ(grid.cell_indices.size(), 2u);
+    EXPECT_EQ(grid.cell_indices[0x00010002].size(), 2u);
+    EXPECT_EQ(grid.cell_indices[0x00010002][0], 100u);
+    EXPECT_EQ(grid.cell_indices[0x00030004].size(), 1u);
+}

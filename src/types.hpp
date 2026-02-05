@@ -7,6 +7,7 @@
 #include <string>
 #include <limits>
 #include <cmath>
+#include <map>
 
 namespace ply2lcc {
 
@@ -172,6 +173,11 @@ struct EncodedCell {
     std::vector<uint8_t> data;    // 32 bytes × num_splats
     std::vector<uint8_t> shcoef;  // 64 bytes × num_splats
     size_t count = 0;
+};
+
+struct ThreadLocalGrid {
+    std::map<uint32_t, std::vector<size_t>> cell_indices;  // cell_id -> splat indices
+    AttributeRanges ranges;
 };
 
 struct ConvertConfig {
