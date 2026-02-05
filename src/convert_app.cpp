@@ -1,10 +1,9 @@
 #include "convert_app.hpp"
-#include "ply_reader.hpp"
-#include "lcc_writer.hpp"
-#include "spatial_grid.hpp"
+#include "splat_buffer.hpp"
 #include "meta_writer.hpp"
 #include "env_writer.hpp"
 #include "attrs_writer.hpp"
+#include "compression.hpp"
 
 #include <iostream>
 #include <filesystem>
@@ -12,6 +11,8 @@
 #include <regex>
 #include <cmath>
 #include <stdexcept>
+#include <fstream>
+#include <omp.h>
 
 namespace fs = std::filesystem;
 
@@ -24,9 +25,9 @@ void ConvertApp::run() {
     parseArgs();
     findPlyFiles();
     validateOutput();
-    computeBounds();
-    buildSpatialGrid();
-    writeLccData();
+    buildSpatialGridParallel();
+    encodeAllLods();
+    writeEncodedData();
     writeEnvironment();
     writeIndex();
     writeMeta();
@@ -158,47 +159,82 @@ void ConvertApp::validateOutput() {
     std::cout << "Cell size: " << cell_size_x_ << " x " << cell_size_y_ << "\n";
 }
 
-void ConvertApp::computeBounds() {
-    std::cout << "\nPhase 1: Computing bounds...\n";
+void ConvertApp::buildSpatialGridParallel() {
+    std::cout << "\nPhase 1: Building spatial grid (parallel)...\n";
 
-    all_splats_.resize(lod_files_.size());
-
+    // First pass: compute global bbox (needed for grid cell calculation)
     for (size_t lod = 0; lod < lod_files_.size(); ++lod) {
-        PLYHeader header;
-        std::cout << "  Reading LOD" << lod << ": " << fs::path(lod_files_[lod]).filename().string() << "\n";
-
-        if (!PLYReader::read_splats(lod_files_[lod], all_splats_[lod], header)) {
-            throw std::runtime_error("Failed to read " + lod_files_[lod]);
+        SplatBuffer buffer;
+        if (!buffer.initialize(lod_files_[lod])) {
+            throw std::runtime_error("Failed to read " + lod_files_[lod] + ": " + buffer.error());
         }
-
-        std::cout << "    " << all_splats_[lod].size() << " splats\n";
-        splats_per_lod_.push_back(all_splats_[lod].size());
-        global_bbox_.expand(header.bbox);
+        global_bbox_.expand(buffer.compute_bbox());
 
         if (lod == 0) {
-            has_sh_ = header.has_sh;
-            sh_degree_ = header.sh_degree;
-            num_f_rest_ = header.num_f_rest;
+            has_sh_ = buffer.num_f_rest() > 0;
+            sh_degree_ = buffer.sh_degree();
+            num_f_rest_ = buffer.num_f_rest();
+        }
+    }
+
+    std::cout << "Global bbox: (" << global_bbox_.min.x << ", " << global_bbox_.min.y << ", " << global_bbox_.min.z
+              << ") - (" << global_bbox_.max.x << ", " << global_bbox_.max.y << ", " << global_bbox_.max.z << ")\n";
+
+    // Create grid with known bbox
+    grid_ = std::make_unique<SpatialGrid>(cell_size_x_, cell_size_y_, global_bbox_, lod_files_.size());
+
+    // Second pass: parallel grid building per LOD
+    for (size_t lod = 0; lod < lod_files_.size(); ++lod) {
+        std::cout << "  Processing LOD" << lod << ": " << fs::path(lod_files_[lod]).filename().string() << "\n";
+
+        SplatBuffer splats;
+        if (!splats.initialize(lod_files_[lod])) {
+            throw std::runtime_error("Failed to read " + lod_files_[lod] + ": " + splats.error());
         }
 
-        // Compute attribute ranges
+        std::cout << "    " << splats.size() << " splats\n";
+        splats_per_lod_.push_back(splats.size());
+
+        int n_threads = omp_get_max_threads();
+        std::vector<ThreadLocalGrid> local_grids(n_threads);
         int bands_per_channel = (has_sh_ && num_f_rest_ > 0) ? num_f_rest_ / 3 : 0;
 
-        for (const auto& s : all_splats_[lod]) {
-            Vec3f linear_scale(std::exp(s.scale.x), std::exp(s.scale.y), std::exp(s.scale.z));
-            global_ranges_.expand_scale(linear_scale);
-            global_ranges_.expand_opacity(sigmoid(s.opacity));
+        #pragma omp parallel
+        {
+            int tid = omp_get_thread_num();
 
-            if (has_sh_ && bands_per_channel > 0) {
-                for (int band = 0; band < bands_per_channel; ++band) {
-                    float r = s.f_rest[band];
-                    float g = s.f_rest[band + bands_per_channel];
-                    float b = s.f_rest[band + 2 * bands_per_channel];
-                    global_ranges_.expand_sh(r, g, b);
+            #pragma omp for schedule(static)
+            for (size_t i = 0; i < splats.size(); ++i) {
+                SplatView sv = splats[i];
+                uint32_t cell_id = grid_->compute_cell_index(sv.pos());
+
+                local_grids[tid].cell_indices[cell_id].push_back(i);
+
+                // Expand ranges
+                Vec3f linear_scale(std::exp(sv.scale().x), std::exp(sv.scale().y), std::exp(sv.scale().z));
+                local_grids[tid].ranges.expand_scale(linear_scale);
+                local_grids[tid].ranges.expand_opacity(sigmoid(sv.opacity()));
+
+                if (bands_per_channel > 0) {
+                    for (int band = 0; band < bands_per_channel; ++band) {
+                        local_grids[tid].ranges.expand_sh(
+                            sv.f_rest(band),
+                            sv.f_rest(band + bands_per_channel),
+                            sv.f_rest(band + 2 * bands_per_channel));
+                    }
                 }
             }
         }
+
+        // Sequential merge
+        for (int t = 0; t < n_threads; ++t) {
+            grid_->merge(local_grids[t], lod);
+            global_ranges_.merge(local_grids[t].ranges);
+        }
     }
+
+    std::cout << "Created " << grid_->get_cells().size() << " grid cells\n";
+    std::cout << "SH: " << (has_sh_ ? "degree " + std::to_string(sh_degree_) + " (" + std::to_string(num_f_rest_) + " coefficients)" : "none") << "\n";
 
     // Read environment if exists
     if (has_env_) {
@@ -209,53 +245,119 @@ void ConvertApp::computeBounds() {
             std::cout << "  Environment: " << env_splats_.size() << " splats\n";
         }
     }
-
-    std::cout << "Global bbox: (" << global_bbox_.min.x << ", " << global_bbox_.min.y << ", " << global_bbox_.min.z
-              << ") - (" << global_bbox_.max.x << ", " << global_bbox_.max.y << ", " << global_bbox_.max.z << ")\n";
-    std::cout << "SH: " << (has_sh_ ? "degree " + std::to_string(sh_degree_) + " (" + std::to_string(num_f_rest_) + " coefficients)" : "none") << "\n";
 }
 
-void ConvertApp::buildSpatialGrid() {
-    // This is handled in writeLccData for simplicity
-}
+void ConvertApp::encodeAllLods() {
+    std::cout << "\nPhase 3: Encoding splats (parallel)...\n";
 
-void ConvertApp::writeLccData() {
-    std::cout << "\nPhase 2: Building spatial grid...\n";
-
-    SpatialGrid grid(cell_size_x_, cell_size_y_, global_bbox_, lod_files_.size());
-
-    for (size_t lod = 0; lod < lod_files_.size(); ++lod) {
-        for (size_t i = 0; i < all_splats_[lod].size(); ++i) {
-            grid.add_splat(lod, all_splats_[lod][i].pos, i);
-        }
+    // Get all cells as a vector for parallel iteration
+    const auto& cells_map = grid_->get_cells();
+    std::vector<std::pair<uint32_t, const GridCell*>> cells_vec;
+    cells_vec.reserve(cells_map.size());
+    for (const auto& [idx, cell] : cells_map) {
+        cells_vec.emplace_back(idx, &cell);
     }
 
-    std::cout << "Created " << grid.get_cells().size() << " grid cells\n";
+    // Initialize encoded_cells_ for all cells and LODs
+    for (const auto& [cell_idx, cell_ptr] : cells_vec) {
+        encoded_cells_[cell_idx].resize(lod_files_.size());
+    }
 
-    std::cout << "\nPhase 3: Writing LCC data...\n";
+    // Process each LOD
+    for (size_t lod = 0; lod < lod_files_.size(); ++lod) {
+        std::cout << "  Encoding LOD" << lod << "...\n";
 
-    LCCWriter writer(output_dir_, global_ranges_, lod_files_.size(), has_sh_);
+        #pragma omp parallel for schedule(dynamic)
+        for (size_t i = 0; i < cells_vec.size(); ++i) {
+            uint32_t cell_idx = cells_vec[i].first;
+            const GridCell* cell = cells_vec[i].second;
 
-    for (const auto& [cell_index, cell] : grid.get_cells()) {
-        for (size_t lod = 0; lod < lod_files_.size(); ++lod) {
-            if (cell.splat_indices[lod].empty()) continue;
+            if (cell->splat_indices[lod].empty()) continue;
 
-            std::vector<Splat> cell_splats;
-            cell_splats.reserve(cell.splat_indices[lod].size());
-            for (size_t idx : cell.splat_indices[lod]) {
-                cell_splats.push_back(all_splats_[lod][idx]);
+            EncodedCell enc;
+            enc.data.reserve(cell->splat_indices[lod].size() * 32);
+            if (has_sh_) {
+                enc.shcoef.reserve(cell->splat_indices[lod].size() * 64);
             }
 
-            writer.write_splats(cell_index, lod, cell_splats);
+            for (size_t idx : cell->splat_indices[lod]) {
+                encode_splat(all_splats_[lod][idx], enc.data, enc.shcoef, global_ranges_, has_sh_);
+            }
+            enc.count = cell->splat_indices[lod].size();
+
+            #pragma omp critical
+            encoded_cells_[cell_idx][lod] = std::move(enc);
         }
     }
 
-    writer.finalize();
-    total_splats_ = writer.total_splats();
+    std::cout << "  Encoding complete.\n";
+}
 
-    // Write index
-    std::cout << "\nPhase 4: Writing index.bin...\n";
-    grid.write_index_bin(output_dir_ + "/index.bin", writer.get_units(), lod_files_.size());
+void ConvertApp::writeEncodedData() {
+    std::cout << "\nPhase 4: Writing LCC data...\n";
+
+    fs::create_directories(output_dir_);
+
+    std::ofstream data_file(output_dir_ + "/data.bin", std::ios::binary);
+    if (!data_file) {
+        throw std::runtime_error("Failed to create data.bin");
+    }
+
+    std::ofstream sh_file;
+    if (has_sh_) {
+        sh_file.open(output_dir_ + "/shcoef.bin", std::ios::binary);
+        if (!sh_file) {
+            throw std::runtime_error("Failed to create shcoef.bin");
+        }
+    }
+
+    uint64_t data_offset = 0;
+    uint64_t sh_offset = 0;
+
+    // Iterate over cells in sorted order (required for index.bin)
+    for (auto& [cell_idx, lod_data] : encoded_cells_) {
+        LCCUnitInfo unit;
+        unit.index = cell_idx;
+        unit.lods.resize(lod_files_.size());
+
+        for (size_t lod = 0; lod < lod_data.size(); ++lod) {
+            auto& enc = lod_data[lod];
+
+            if (enc.count == 0) continue;
+
+            LCCNodeInfo& node = unit.lods[lod];
+            node.splat_count = static_cast<uint32_t>(enc.count);
+            node.data_offset = data_offset;
+            node.data_size = static_cast<uint32_t>(enc.data.size());
+
+            data_file.write(reinterpret_cast<char*>(enc.data.data()), enc.data.size());
+            data_offset += enc.data.size();
+
+            if (has_sh_) {
+                node.sh_offset = sh_offset;
+                node.sh_size = static_cast<uint32_t>(enc.shcoef.size());
+                sh_file.write(reinterpret_cast<char*>(enc.shcoef.data()), enc.shcoef.size());
+                sh_offset += enc.shcoef.size();
+            }
+
+            total_splats_ += enc.count;
+
+            // Clear encoded data to free memory
+            enc.data.clear();
+            enc.data.shrink_to_fit();
+            enc.shcoef.clear();
+            enc.shcoef.shrink_to_fit();
+        }
+
+        units_.push_back(std::move(unit));
+    }
+
+    data_file.close();
+    if (has_sh_) {
+        sh_file.close();
+    }
+
+    std::cout << "  Written " << total_splats_ << " splats.\n";
 }
 
 void ConvertApp::writeEnvironment() {
@@ -268,11 +370,12 @@ void ConvertApp::writeEnvironment() {
 }
 
 void ConvertApp::writeIndex() {
-    // Already done in writeLccData
+    std::cout << "\nPhase 5: Writing index.bin...\n";
+    grid_->write_index_bin(output_dir_ + "/index.bin", units_, lod_files_.size());
 }
 
 void ConvertApp::writeMeta() {
-    std::cout << "\nPhase 5: Writing meta.lcc...\n";
+    std::cout << "\nPhase 6: Writing meta.lcc...\n";
 
     MetaInfo meta;
     meta.guid = MetaWriter::generate_guid();
@@ -295,7 +398,7 @@ void ConvertApp::writeMeta() {
 }
 
 void ConvertApp::writeAttrs() {
-    std::cout << "\nPhase 6: Writing attrs.lcp...\n";
+    std::cout << "\nPhase 7: Writing attrs.lcp...\n";
     AttrsWriter::write(output_dir_ + "/attrs.lcp");
 }
 
