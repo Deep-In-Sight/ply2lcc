@@ -21,6 +21,11 @@ add_executable(ply2lcc-gui
     convertworker.hpp
 )
 
+# Hide console window on Windows
+if(WIN32)
+    set_target_properties(ply2lcc-gui PROPERTIES WIN32_EXECUTABLE TRUE)
+endif()
+
 target_link_libraries(ply2lcc-gui PRIVATE
     Qt${QT_VERSION_MAJOR}::Widgets
     ply2lcc_lib

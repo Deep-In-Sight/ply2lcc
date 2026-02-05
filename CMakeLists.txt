@@ -27,6 +27,7 @@ target_include_directories(ply2lcc PRIVATE
 
 target_compile_options(ply2lcc PRIVATE
     $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall -Wextra -O2>
+    $<$<CXX_COMPILER_ID:MSVC>:/W3 /O2>
 )
 
 target_link_libraries(ply2lcc PRIVATE OpenMP::OpenMP_CXX)
