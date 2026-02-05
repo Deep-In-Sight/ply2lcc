@@ -314,18 +314,16 @@ void ConvertApp::encodeAllLods() {
             throw std::runtime_error("Failed to reopen " + lod_files_[lod]);
         }
 
+        // Calculate reporting frequency (every 1% progress or at least every cell if < 100 cells)
+        size_t report_interval = std::max(size_t(1), total_cells / 100);
+
         #pragma omp parallel for schedule(dynamic)
         for (size_t i = 0; i < cells_vec.size(); ++i) {
             uint32_t cell_idx = cells_vec[i].first;
             const GridCell* cell = cells_vec[i].second;
 
+            // Skip empty cells - no critical section needed
             if (cell->splat_indices[lod].empty()) {
-                #pragma omp critical
-                {
-                    processed++;
-                    int percent = 15 + static_cast<int>(processed * 75 / total_cells);
-                    reportProgress(percent, "Encoding cell " + std::to_string(processed) + "/" + std::to_string(total_cells));
-                }
                 continue;
             }
 
@@ -345,8 +343,11 @@ void ConvertApp::encodeAllLods() {
             {
                 encoded_cells_[cell_idx][lod] = std::move(enc);
                 processed++;
-                int percent = 15 + static_cast<int>(processed * 75 / total_cells);
-                reportProgress(percent, "Encoding cell " + std::to_string(processed) + "/" + std::to_string(total_cells));
+                // Only report progress at intervals to reduce lock contention
+                if (processed % report_interval == 0) {
+                    int percent = 15 + static_cast<int>(processed * 75 / total_cells);
+                    reportProgress(percent, "Encoding cell " + std::to_string(processed) + "/" + std::to_string(total_cells));
+                }
             }
         }
     }
