@@ -28,6 +28,10 @@ ConvertApp::ConvertApp(const ConvertConfig& config)
     , cell_size_x_(config.cell_size_x)
     , cell_size_y_(config.cell_size_y)
     , single_lod_(config.single_lod)
+    , include_env_(config.include_env)
+    , include_collision_(config.include_collision)
+    , env_file_(config.env_path)
+    , collision_file_(config.collision_path)
 {
     // Derive input_dir_ and base_name_ from input_path_
     fs::path p(input_path_);
@@ -96,6 +100,8 @@ void ConvertApp::printUsage() {
     std::cerr << "Usage: " << argv_[0] << " -i <input.ply> -o <output_dir> [options]\n"
               << "\n"
               << "Options:\n"
+              << "  -e <path>          Path to environment.ply (default: auto-detect in input dir)\n"
+              << "  -m <path>          Path to collision.ply (default: auto-detect in input dir)\n"
               << "  --single-lod       Use only LOD0 even if more LOD files exist\n"
               << "  --cell-size X,Y    Grid cell size in meters (default: 30,30)\n";
 }
@@ -107,6 +113,12 @@ void ConvertApp::parseArgs() {
             input_path_ = argv_[++i];
         } else if (arg == "-o" && i + 1 < argc_) {
             output_dir_ = argv_[++i];
+        } else if (arg == "-e" && i + 1 < argc_) {
+            env_file_ = argv_[++i];
+            include_env_ = true;
+        } else if (arg == "-m" && i + 1 < argc_) {
+            collision_file_ = argv_[++i];
+            include_collision_ = true;
         } else if (arg == "--single-lod") {
             single_lod_ = true;
         } else if (arg == "--cell-size" && i + 1 < argc_) {
@@ -190,13 +202,35 @@ void ConvertApp::findPlyFiles() {
     }
 
     // Check for environment.ply
-    env_file_ = input_dir_ + "/environment.ply";
-    if (fs::exists(env_file_)) {
-        has_env_ = true;
-        log("Found environment.ply\n");
-    } else {
-        log("Warning: environment.ply not found\n");
-        env_file_.clear();
+    if (include_env_) {
+        if (env_file_.empty()) {
+            // Auto-detect in input directory
+            env_file_ = input_dir_ + "/environment.ply";
+        }
+        if (fs::exists(env_file_)) {
+            has_env_ = true;
+            log("Environment: " + env_file_ + "\n");
+        } else {
+            log("Warning: environment.ply not found at " + env_file_ + "\n");
+            env_file_.clear();
+            has_env_ = false;
+        }
+    }
+
+    // Check for collision.ply
+    if (include_collision_) {
+        if (collision_file_.empty()) {
+            // Auto-detect in input directory
+            collision_file_ = input_dir_ + "/collision.ply";
+        }
+        if (fs::exists(collision_file_)) {
+            has_collision_ = true;
+            log("Collision: " + collision_file_ + "\n");
+        } else {
+            log("Warning: collision.ply not found at " + collision_file_ + "\n");
+            collision_file_.clear();
+            has_collision_ = false;
+        }
     }
 }
 

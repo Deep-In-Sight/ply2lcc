@@ -52,6 +52,8 @@ This builds both the CLI (`ply2lcc`) and GUI (`ply2lcc_gui`) executables.
 |--------|-------------|---------|
 | `-i, --input` | Input PLY file or directory | Required |
 | `-o, --output` | Output LCC directory | Required |
+| `-e <path>` | Path to environment.ply | Auto-detect in input dir |
+| `-m <path>` | Path to collision.ply | Auto-detect in input dir |
 | `-x, --cell-x` | Grid cell size X (meters) | 30.0 |
 | `-y, --cell-y` | Grid cell size Y (meters) | 30.0 |
 | `--single-lod` | Treat input as single LOD | false |
@@ -71,12 +73,12 @@ The GUI provides a user-friendly interface for users unfamiliar with command lin
 - **Settings panel**:
   - Cell Size X/Y: Grid cell dimensions in meters
   - Single LOD mode: Disable LOD hierarchy
-  - Include environment: Auto-detected based on `environment.ply` presence
-  - Include collision: Coming soon (disabled)
+  - Include environment: File picker with path validation (red background if file not found)
+  - Include collision: File picker with path validation (red background if file not found)
 - **Progress bar**: Real-time conversion progress
 - **Log display**: Timestamped conversion messages
 
-The GUI automatically detects if `environment.ply` exists in the same directory as the input file and enables/disables the environment checkbox accordingly.
+When enabling environment or collision, the default path is set to the input directory. The path text box shows a red background if the file doesn't exist.
 
 ## Output Files
 

@@ -11,7 +11,9 @@ int main(int argc, char* argv[]) {
 
     QObject::connect(&window, &MainWindow::conversionRequested,
         [&window](const QString& inputPath, const QString& outputDir,
-                  double cellX, double cellY, bool singleLod, bool includeEnv) {
+                  double cellX, double cellY, bool singleLod,
+                  bool includeEnv, const QString& envPath,
+                  bool includeCollision, const QString& collisionPath) {
 
             ply2lcc::ConvertConfig config;
             config.input_path = inputPath.toStdString();
@@ -20,6 +22,9 @@ int main(int argc, char* argv[]) {
             config.cell_size_y = static_cast<float>(cellY);
             config.single_lod = singleLod;
             config.include_env = includeEnv;
+            config.env_path = envPath.toStdString();
+            config.include_collision = includeCollision;
+            config.collision_path = collisionPath.toStdString();
 
             auto* worker = new ConvertWorker(config, &window);
 

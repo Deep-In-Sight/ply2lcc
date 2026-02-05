@@ -23,7 +23,10 @@ signals:
                              double cellSizeX,
                              double cellSizeY,
                              bool singleLod,
-                             bool includeEnvironment);
+                             bool includeEnvironment,
+                             const QString& envPath,
+                             bool includeCollision,
+                             const QString& collisionPath);
 
 public slots:
     void onProgressChanged(int percent);
@@ -33,14 +36,19 @@ public slots:
 private slots:
     void browseInput();
     void browseOutput();
+    void browseEnv();
+    void browseCollision();
     void startConversion();
     void updateConvertButtonState();
     void onInputPathChanged(const QString& path);
+    void onEnvPathChanged(const QString& path);
+    void onCollisionPathChanged(const QString& path);
 
 private:
     void setupUi();
     void setInputsEnabled(bool enabled);
-    bool checkEnvironmentExists(const QString& inputPath);
+    void updatePathStyle(QLineEdit* edit, bool exists);
+    QString getInputDir() const;
 
     // Input/Output widgets
     QLineEdit* m_inputPathEdit;
@@ -53,7 +61,11 @@ private:
     QDoubleSpinBox* m_cellSizeYSpin;
     QCheckBox* m_singleLodCheck;
     QCheckBox* m_includeEnvCheck;
+    QLineEdit* m_envPathEdit;
+    QPushButton* m_browseEnvBtn;
     QCheckBox* m_includeCollisionCheck;
+    QLineEdit* m_collisionPathEdit;
+    QPushButton* m_browseCollisionBtn;
 
     // Log and progress widgets
     QTextEdit* m_logEdit;

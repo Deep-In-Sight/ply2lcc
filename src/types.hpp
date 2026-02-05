@@ -187,8 +187,10 @@ struct ConvertConfig {
     float cell_size_x = 30.0f;
     float cell_size_y = 30.0f;
     bool single_lod = false;
-    bool include_env = true;     // NEW: process environment PLY if found
-    bool include_collision = false;  // NEW: placeholder for future feature
+    bool include_env = true;     // Process environment PLY if found
+    std::string env_path;        // Explicit path to environment.ply (empty = auto-detect)
+    bool include_collision = false;  // Process collision PLY if found
+    std::string collision_path;  // Explicit path to collision.ply (empty = auto-detect)
 };
 
 // Utility functions

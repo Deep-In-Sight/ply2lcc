@@ -50,8 +50,12 @@ private:
 
     // Discovered files
     std::vector<std::string> lod_files_;
+    bool include_env_ = true;
+    bool include_collision_ = false;
     std::string env_file_;
+    std::string collision_file_;
     bool has_env_ = false;
+    bool has_collision_ = false;
 
     // Conversion data (no more all_splats_!)
     std::vector<size_t> splats_per_lod_;

@@ -74,14 +74,33 @@ void MainWindow::setupUi() {
     m_singleLodCheck = new QCheckBox("Single LOD mode");
     settingsLayout->addWidget(m_singleLodCheck);
 
-    m_includeEnvCheck = new QCheckBox("Include environment");
-    m_includeEnvCheck->setChecked(true);
-    settingsLayout->addWidget(m_includeEnvCheck);
+    // Environment row
+    auto* envLayout = new QHBoxLayout();
+    m_includeEnvCheck = new QCheckBox("Include environment:");
+    m_includeEnvCheck->setChecked(false);
+    envLayout->addWidget(m_includeEnvCheck);
+    m_envPathEdit = new QLineEdit();
+    m_envPathEdit->setPlaceholderText("Path to environment.ply...");
+    m_envPathEdit->setEnabled(false);
+    envLayout->addWidget(m_envPathEdit, 1);
+    m_browseEnvBtn = new QPushButton("Browse...");
+    m_browseEnvBtn->setEnabled(false);
+    envLayout->addWidget(m_browseEnvBtn);
+    settingsLayout->addLayout(envLayout);
 
-    m_includeCollisionCheck = new QCheckBox("Include collision");
-    m_includeCollisionCheck->setEnabled(false);
-    m_includeCollisionCheck->setToolTip("Coming soon");
-    settingsLayout->addWidget(m_includeCollisionCheck);
+    // Collision row
+    auto* collisionLayout = new QHBoxLayout();
+    m_includeCollisionCheck = new QCheckBox("Include collision:");
+    m_includeCollisionCheck->setChecked(false);
+    collisionLayout->addWidget(m_includeCollisionCheck);
+    m_collisionPathEdit = new QLineEdit();
+    m_collisionPathEdit->setPlaceholderText("Path to collision.ply...");
+    m_collisionPathEdit->setEnabled(false);
+    collisionLayout->addWidget(m_collisionPathEdit, 1);
+    m_browseCollisionBtn = new QPushButton("Browse...");
+    m_browseCollisionBtn->setEnabled(false);
+    collisionLayout->addWidget(m_browseCollisionBtn);
+    settingsLayout->addLayout(collisionLayout);
 
     mainLayout->addWidget(settingsGroup);
 
@@ -115,10 +134,36 @@ void MainWindow::setupUi() {
     // Connect signals
     connect(m_browseInputBtn, &QPushButton::clicked, this, &MainWindow::browseInput);
     connect(m_browseOutputBtn, &QPushButton::clicked, this, &MainWindow::browseOutput);
+    connect(m_browseEnvBtn, &QPushButton::clicked, this, &MainWindow::browseEnv);
+    connect(m_browseCollisionBtn, &QPushButton::clicked, this, &MainWindow::browseCollision);
     connect(m_convertBtn, &QPushButton::clicked, this, &MainWindow::startConversion);
     connect(m_inputPathEdit, &QLineEdit::textChanged, this, &MainWindow::updateConvertButtonState);
     connect(m_inputPathEdit, &QLineEdit::textChanged, this, &MainWindow::onInputPathChanged);
     connect(m_outputDirEdit, &QLineEdit::textChanged, this, &MainWindow::updateConvertButtonState);
+
+    // Environment checkbox and path
+    connect(m_includeEnvCheck, &QCheckBox::toggled, this, [this](bool checked) {
+        m_envPathEdit->setEnabled(checked);
+        m_browseEnvBtn->setEnabled(checked);
+        if (checked && m_envPathEdit->text().isEmpty()) {
+            // Set default path
+            QString defaultPath = QDir(getInputDir()).filePath("environment.ply");
+            m_envPathEdit->setText(defaultPath);
+        }
+    });
+    connect(m_envPathEdit, &QLineEdit::textChanged, this, &MainWindow::onEnvPathChanged);
+
+    // Collision checkbox and path
+    connect(m_includeCollisionCheck, &QCheckBox::toggled, this, [this](bool checked) {
+        m_collisionPathEdit->setEnabled(checked);
+        m_browseCollisionBtn->setEnabled(checked);
+        if (checked && m_collisionPathEdit->text().isEmpty()) {
+            // Set default path
+            QString defaultPath = QDir(getInputDir()).filePath("collision.ply");
+            m_collisionPathEdit->setText(defaultPath);
+        }
+    });
+    connect(m_collisionPathEdit, &QLineEdit::textChanged, this, &MainWindow::onCollisionPathChanged);
 }
 
 void MainWindow::browseInput() {
@@ -143,6 +188,30 @@ void MainWindow::browseOutput() {
     }
 }
 
+void MainWindow::browseEnv() {
+    QString startDir = getInputDir();
+    QString filePath = QFileDialog::getOpenFileName(
+        this,
+        "Select Environment PLY File",
+        startDir,
+        "PLY Files (*.ply);;All Files (*)");
+    if (!filePath.isEmpty()) {
+        m_envPathEdit->setText(filePath);
+    }
+}
+
+void MainWindow::browseCollision() {
+    QString startDir = getInputDir();
+    QString filePath = QFileDialog::getOpenFileName(
+        this,
+        "Select Collision PLY File",
+        startDir,
+        "PLY Files (*.ply);;All Files (*)");
+    if (!filePath.isEmpty()) {
+        m_collisionPathEdit->setText(filePath);
+    }
+}
+
 void MainWindow::startConversion() {
     setInputsEnabled(false);
     m_progressBar->setValue(0);
@@ -157,7 +226,10 @@ void MainWindow::startConversion() {
         m_cellSizeXSpin->value(),
         m_cellSizeYSpin->value(),
         m_singleLodCheck->isChecked(),
-        m_includeEnvCheck->isChecked());
+        m_includeEnvCheck->isChecked(),
+        m_envPathEdit->text(),
+        m_includeCollisionCheck->isChecked(),
+        m_collisionPathEdit->text());
 }
 
 void MainWindow::updateConvertButtonState() {
@@ -167,32 +239,62 @@ void MainWindow::updateConvertButtonState() {
 }
 
 void MainWindow::onInputPathChanged(const QString& path) {
-    bool hasEnv = checkEnvironmentExists(path);
-    m_includeEnvCheck->setEnabled(hasEnv);
-    if (!hasEnv) {
-        m_includeEnvCheck->setChecked(false);
-        m_includeEnvCheck->setToolTip("environment.ply not found in input directory");
-    } else {
-        m_includeEnvCheck->setToolTip("");
+    Q_UNUSED(path);
+    QString dir = getInputDir();
+    if (dir.isEmpty()) {
+        return;
+    }
+
+    // Update environment default path if checkbox is checked but path is empty or was default
+    if (m_includeEnvCheck->isChecked()) {
+        QString defaultEnvPath = QDir(dir).filePath("environment.ply");
+        QString currentEnvPath = m_envPathEdit->text();
+        // Update path if it's empty or if it was pointing to a different directory's default
+        if (currentEnvPath.isEmpty() || currentEnvPath.endsWith("/environment.ply")) {
+            m_envPathEdit->setText(defaultEnvPath);
+        }
+    }
+
+    // Update collision default path if checkbox is checked but path is empty or was default
+    if (m_includeCollisionCheck->isChecked()) {
+        QString defaultCollPath = QDir(dir).filePath("collision.ply");
+        QString currentCollPath = m_collisionPathEdit->text();
+        if (currentCollPath.isEmpty() || currentCollPath.endsWith("/collision.ply")) {
+            m_collisionPathEdit->setText(defaultCollPath);
+        }
     }
 }
 
-bool MainWindow::checkEnvironmentExists(const QString& inputPath) {
+void MainWindow::onEnvPathChanged(const QString& path) {
+    bool exists = !path.isEmpty() && QFileInfo::exists(path);
+    updatePathStyle(m_envPathEdit, exists);
+}
+
+void MainWindow::onCollisionPathChanged(const QString& path) {
+    bool exists = !path.isEmpty() && QFileInfo::exists(path);
+    updatePathStyle(m_collisionPathEdit, exists);
+}
+
+QString MainWindow::getInputDir() const {
+    QString inputPath = m_inputPathEdit->text();
     if (inputPath.isEmpty()) {
-        return false;
+        return QString();
     }
 
     QFileInfo fileInfo(inputPath);
-    QString dir;
-
     if (fileInfo.isDir()) {
-        dir = inputPath;
+        return inputPath;
     } else {
-        dir = fileInfo.absolutePath();
+        return fileInfo.absolutePath();
     }
+}
 
-    QString envPath = QDir(dir).filePath("environment.ply");
-    return QFileInfo::exists(envPath);
+void MainWindow::updatePathStyle(QLineEdit* edit, bool exists) {
+    if (exists) {
+        edit->setStyleSheet("");
+    } else {
+        edit->setStyleSheet("QLineEdit { background-color: #ffcccc; }");
+    }
 }
 
 void MainWindow::setInputsEnabled(bool enabled) {
@@ -203,10 +305,17 @@ void MainWindow::setInputsEnabled(bool enabled) {
     m_cellSizeXSpin->setEnabled(enabled);
     m_cellSizeYSpin->setEnabled(enabled);
     m_singleLodCheck->setEnabled(enabled);
-    // Only enable env checkbox if environment.ply exists
-    bool hasEnv = checkEnvironmentExists(m_inputPathEdit->text());
-    m_includeEnvCheck->setEnabled(enabled && hasEnv);
-    // m_includeCollisionCheck stays disabled (coming soon)
+
+    // Environment controls
+    m_includeEnvCheck->setEnabled(enabled);
+    m_envPathEdit->setEnabled(enabled && m_includeEnvCheck->isChecked());
+    m_browseEnvBtn->setEnabled(enabled && m_includeEnvCheck->isChecked());
+
+    // Collision controls
+    m_includeCollisionCheck->setEnabled(enabled);
+    m_collisionPathEdit->setEnabled(enabled && m_includeCollisionCheck->isChecked());
+    m_browseCollisionBtn->setEnabled(enabled && m_includeCollisionCheck->isChecked());
+
     m_convertBtn->setEnabled(enabled && !m_inputPathEdit->text().isEmpty() &&
                              !m_outputDirEdit->text().isEmpty());
 }
