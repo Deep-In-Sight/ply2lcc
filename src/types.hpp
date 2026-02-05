@@ -203,6 +203,9 @@ inline float clamp(float x, float lo, float hi) {
 // Progress callback for GUI integration
 using ProgressCallback = std::function<void(int percent, const std::string& message)>;
 
+// Log callback for redirecting console output (GUI integration)
+using LogCallback = std::function<void(const std::string& message)>;
+
 } // namespace ply2lcc
 
 #endif // PLY2LCC_TYPES_HPP

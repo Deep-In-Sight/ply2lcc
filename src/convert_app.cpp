@@ -44,9 +44,21 @@ void ConvertApp::setProgressCallback(ProgressCallback cb) {
     progress_cb_ = std::move(cb);
 }
 
+void ConvertApp::setLogCallback(LogCallback cb) {
+    log_cb_ = std::move(cb);
+}
+
 void ConvertApp::reportProgress(int percent, const std::string& msg) {
     if (progress_cb_) {
         progress_cb_(percent, msg);
+    }
+}
+
+void ConvertApp::log(const std::string& msg) {
+    if (log_cb_) {
+        log_cb_(msg);
+    } else {
+        std::cout << msg;
     }
 }
 
@@ -75,9 +87,9 @@ void ConvertApp::run() {
 
     reportProgress(100, "Conversion complete!");
 
-    std::cout << "\nConversion complete!\n";
-    std::cout << "Total splats: " << total_splats_ << "\n";
-    std::cout << "Output: " << output_dir_ << "\n";
+    log("\nConversion complete!\n");
+    log("Total splats: " + std::to_string(total_splats_) + "\n");
+    log("Output: " + output_dir_ + "\n");
 }
 
 void ConvertApp::printUsage() {
@@ -128,7 +140,7 @@ void ConvertApp::parseArgs() {
         throw std::runtime_error("Input file must have .ply extension");
     }
 
-    std::cout << "Input: " << input_path_ << "\n";
+    log("Input: " + input_path_ + "\n");
 }
 
 void ConvertApp::findPlyFiles() {
@@ -160,15 +172,15 @@ void ConvertApp::findPlyFiles() {
     }
 
     // Print LOD info
-    std::cout << "Found " << lod_files_.size() << " LOD level"
-              << (lod_files_.size() > 1 ? "s" : "") << ":\n";
+    log("Found " + std::to_string(lod_files_.size()) + " LOD level" +
+        (lod_files_.size() > 1 ? "s" : "") + ":\n");
 
     for (size_t i = 0; i < lod_files_.size(); ++i) {
         std::string filename = fs::path(lod_files_[i]).filename().string();
         if (single_lod_ && i > 0) {
-            std::cout << "  LOD" << i << ": " << filename << " (skipped: --single-lod)\n";
+            log("  LOD" + std::to_string(i) + ": " + filename + " (skipped: --single-lod)\n");
         } else {
-            std::cout << "  LOD" << i << ": " << filename << "\n";
+            log("  LOD" + std::to_string(i) + ": " + filename + "\n");
         }
     }
 
@@ -181,9 +193,9 @@ void ConvertApp::findPlyFiles() {
     env_file_ = input_dir_ + "/environment.ply";
     if (fs::exists(env_file_)) {
         has_env_ = true;
-        std::cout << "Found environment.ply\n";
+        log("Found environment.ply\n");
     } else {
-        std::cerr << "Warning: environment.ply not found\n";
+        log("Warning: environment.ply not found\n");
         env_file_.clear();
     }
 }
@@ -194,15 +206,15 @@ void ConvertApp::validateOutput() {
 
     // Warn if not empty
     if (!fs::is_empty(output_dir_)) {
-        std::cerr << "Warning: Output directory is not empty: " << output_dir_ << "\n";
+        log("Warning: Output directory is not empty: " + output_dir_ + "\n");
     }
 
-    std::cout << "Output: " << output_dir_ << "\n";
-    std::cout << "Cell size: " << cell_size_x_ << " x " << cell_size_y_ << "\n";
+    log("Output: " + output_dir_ + "\n");
+    log("Cell size: " + std::to_string(cell_size_x_) + " x " + std::to_string(cell_size_y_) + "\n");
 }
 
 void ConvertApp::buildSpatialGridParallel() {
-    std::cout << "\nPhase 1: Building spatial grid (parallel)...\n";
+    log("\nPhase 1: Building spatial grid (parallel)...\n");
 
     // First pass: compute global bbox (needed for grid cell calculation)
     for (size_t lod = 0; lod < lod_files_.size(); ++lod) {
@@ -219,22 +231,22 @@ void ConvertApp::buildSpatialGridParallel() {
         }
     }
 
-    std::cout << "Global bbox: (" << global_bbox_.min.x << ", " << global_bbox_.min.y << ", " << global_bbox_.min.z
-              << ") - (" << global_bbox_.max.x << ", " << global_bbox_.max.y << ", " << global_bbox_.max.z << ")\n";
+    log("Global bbox: (" + std::to_string(global_bbox_.min.x) + ", " + std::to_string(global_bbox_.min.y) + ", " + std::to_string(global_bbox_.min.z) +
+        ") - (" + std::to_string(global_bbox_.max.x) + ", " + std::to_string(global_bbox_.max.y) + ", " + std::to_string(global_bbox_.max.z) + ")\n");
 
     // Create grid with known bbox
     grid_ = std::make_unique<SpatialGrid>(cell_size_x_, cell_size_y_, global_bbox_, lod_files_.size());
 
     // Second pass: parallel grid building per LOD
     for (size_t lod = 0; lod < lod_files_.size(); ++lod) {
-        std::cout << "  Processing LOD" << lod << ": " << fs::path(lod_files_[lod]).filename().string() << "\n";
+        log("  Processing LOD" + std::to_string(lod) + ": " + fs::path(lod_files_[lod]).filename().string() + "\n");
 
         SplatBuffer splats;
         if (!splats.initialize(lod_files_[lod])) {
             throw std::runtime_error("Failed to read " + lod_files_[lod] + ": " + splats.error());
         }
 
-        std::cout << "    " << splats.size() << " splats\n";
+        log("    " + std::to_string(splats.size()) + " splats\n");
         splats_per_lod_.push_back(splats.size());
 
         int n_threads = omp_get_max_threads();
@@ -275,22 +287,22 @@ void ConvertApp::buildSpatialGridParallel() {
         }
     }
 
-    std::cout << "Created " << grid_->get_cells().size() << " grid cells\n";
-    std::cout << "SH: " << (has_sh_ ? "degree " + std::to_string(sh_degree_) + " (" + std::to_string(num_f_rest_) + " coefficients)" : "none") << "\n";
+    log("Created " + std::to_string(grid_->get_cells().size()) + " grid cells\n");
+    log("SH: " + (has_sh_ ? "degree " + std::to_string(sh_degree_) + " (" + std::to_string(num_f_rest_) + " coefficients)" : std::string("none")) + "\n");
 
     // Read environment if exists
     if (has_env_) {
         if (!EnvWriter::read_environment(env_file_, env_splats_, env_bounds_)) {
-            std::cerr << "Warning: Failed to read environment.ply\n";
+            log("Warning: Failed to read environment.ply\n");
             has_env_ = false;
         } else {
-            std::cout << "  Environment: " << env_splats_.size() << " splats\n";
+            log("  Environment: " + std::to_string(env_splats_.size()) + " splats\n");
         }
     }
 }
 
 void ConvertApp::encodeAllLods() {
-    std::cout << "\nPhase 2: Encoding splats (parallel)...\n";
+    log("\nPhase 2: Encoding splats (parallel)...\n");
 
     // Prepare cells vector for parallel iteration
     const auto& cells_map = grid_->get_cells();
@@ -306,7 +318,7 @@ void ConvertApp::encodeAllLods() {
     size_t processed = 0;
 
     for (size_t lod = 0; lod < lod_files_.size(); ++lod) {
-        std::cout << "  Encoding LOD" << lod << "...\n";
+        log("  Encoding LOD" + std::to_string(lod) + "...\n");
 
         // Reopen SplatBuffer for this LOD
         SplatBuffer splats;
@@ -352,11 +364,11 @@ void ConvertApp::encodeAllLods() {
         }
     }
 
-    std::cout << "  Encoding complete.\n";
+    log("  Encoding complete.\n");
 }
 
 void ConvertApp::writeEncodedData() {
-    std::cout << "\nPhase 4: Writing LCC data...\n";
+    log("\nPhase 4: Writing LCC data...\n");
 
     fs::create_directories(output_dir_);
 
@@ -419,25 +431,25 @@ void ConvertApp::writeEncodedData() {
         sh_file.close();
     }
 
-    std::cout << "  Written " << total_splats_ << " splats.\n";
+    log("  Written " + std::to_string(total_splats_) + " splats.\n");
 }
 
 void ConvertApp::writeEnvironment() {
     if (has_env_ && !env_splats_.empty()) {
-        std::cout << "\nWriting environment.bin...\n";
+        log("\nWriting environment.bin...\n");
         if (!EnvWriter::write_environment_bin(output_dir_ + "/environment.bin", env_splats_, env_bounds_, has_sh_)) {
-            std::cerr << "Warning: Failed to write environment.bin\n";
+            log("Warning: Failed to write environment.bin\n");
         }
     }
 }
 
 void ConvertApp::writeIndex() {
-    std::cout << "\nPhase 5: Writing index.bin...\n";
+    log("\nPhase 5: Writing index.bin...\n");
     grid_->write_index_bin(output_dir_ + "/index.bin", units_, lod_files_.size());
 }
 
 void ConvertApp::writeMeta() {
-    std::cout << "\nPhase 6: Writing meta.lcc...\n";
+    log("\nPhase 6: Writing meta.lcc...\n");
 
     MetaInfo meta;
     meta.guid = MetaWriter::generate_guid();
@@ -460,7 +472,7 @@ void ConvertApp::writeMeta() {
 }
 
 void ConvertApp::writeAttrs() {
-    std::cout << "\nPhase 7: Writing attrs.lcp...\n";
+    log("\nPhase 7: Writing attrs.lcp...\n");
     AttrsWriter::write(output_dir_ + "/attrs.lcp");
 }
 

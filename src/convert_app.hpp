@@ -16,10 +16,12 @@ public:
     ConvertApp(int argc, char** argv);
     ConvertApp(const ConvertConfig& config);  // Constructor for GUI
     void setProgressCallback(ProgressCallback cb);
+    void setLogCallback(LogCallback cb);
     void run();
 
 private:
     void reportProgress(int percent, const std::string& msg);
+    void log(const std::string& msg);
     void parseArgs();
     void findPlyFiles();
     void validateOutput();
@@ -35,6 +37,7 @@ private:
     int argc_;
     char** argv_;
     ProgressCallback progress_cb_;
+    LogCallback log_cb_;
 
     // Config
     std::string input_path_;
