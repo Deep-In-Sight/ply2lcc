@@ -8,6 +8,7 @@
 #include <limits>
 #include <cmath>
 #include <map>
+#include <functional>
 
 namespace ply2lcc {
 
@@ -181,11 +182,13 @@ struct ThreadLocalGrid {
 };
 
 struct ConvertConfig {
-    std::string input_dir;
+    std::string input_path;      // PLY file or directory (renamed from input_dir)
     std::string output_dir;
-    bool single_lod = false;
     float cell_size_x = 30.0f;
     float cell_size_y = 30.0f;
+    bool single_lod = false;
+    bool include_env = true;     // NEW: process environment PLY if found
+    bool include_collision = false;  // NEW: placeholder for future feature
 };
 
 // Utility functions
@@ -196,6 +199,9 @@ inline float sigmoid(float x) {
 inline float clamp(float x, float lo, float hi) {
     return x < lo ? lo : (x > hi ? hi : x);
 }
+
+// Progress callback for GUI integration
+using ProgressCallback = std::function<void(int percent, const std::string& message)>;
 
 } // namespace ply2lcc
 
