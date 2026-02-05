@@ -51,16 +51,29 @@ void ConvertApp::reportProgress(int percent, const std::string& msg) {
 }
 
 void ConvertApp::run() {
+    reportProgress(0, "Starting conversion...");
+
     parseArgs();
     findPlyFiles();
+
+    reportProgress(2, "Found " + std::to_string(lod_files_.size()) + " LOD files");
+
     validateOutput();
+
+    reportProgress(5, "Building spatial grid...");
     buildSpatialGridParallel();
+
+    reportProgress(15, "Encoding splats...");
     encodeAllLods();
+
+    reportProgress(90, "Writing output files...");
     writeEncodedData();
     writeEnvironment();
     writeIndex();
     writeMeta();
     writeAttrs();
+
+    reportProgress(100, "Conversion complete!");
 
     std::cout << "\nConversion complete!\n";
     std::cout << "Total splats: " << total_splats_ << "\n";
@@ -288,6 +301,10 @@ void ConvertApp::encodeAllLods() {
         encoded_cells_[idx].resize(lod_files_.size());
     }
 
+    // Track progress across all LODs and cells
+    size_t total_cells = cells_vec.size() * lod_files_.size();
+    size_t processed = 0;
+
     for (size_t lod = 0; lod < lod_files_.size(); ++lod) {
         std::cout << "  Encoding LOD" << lod << "...\n";
 
@@ -302,7 +319,15 @@ void ConvertApp::encodeAllLods() {
             uint32_t cell_idx = cells_vec[i].first;
             const GridCell* cell = cells_vec[i].second;
 
-            if (cell->splat_indices[lod].empty()) continue;
+            if (cell->splat_indices[lod].empty()) {
+                #pragma omp critical
+                {
+                    processed++;
+                    int percent = 15 + static_cast<int>(processed * 75 / total_cells);
+                    reportProgress(percent, "Encoding cell " + std::to_string(processed) + "/" + std::to_string(total_cells));
+                }
+                continue;
+            }
 
             EncodedCell enc;
             enc.data.reserve(cell->splat_indices[lod].size() * 32);
@@ -317,7 +342,12 @@ void ConvertApp::encodeAllLods() {
             enc.count = cell->splat_indices[lod].size();
 
             #pragma omp critical
-            encoded_cells_[cell_idx][lod] = std::move(enc);
+            {
+                encoded_cells_[cell_idx][lod] = std::move(enc);
+                processed++;
+                int percent = 15 + static_cast<int>(processed * 75 / total_cells);
+                reportProgress(percent, "Encoding cell " + std::to_string(processed) + "/" + std::to_string(total_cells));
+            }
         }
     }
 
