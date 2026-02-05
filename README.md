@@ -12,11 +12,23 @@ A high-performance converter for 3D Gaussian Splatting (3DGS) PLY files to LCC f
 
 ## Build
 
+### CLI Only
+
 ```bash
 mkdir build && cd build
 cmake .. -DBUILD_TESTS=ON
 make -j$(nproc)
 ```
+
+### With GUI (requires Qt5 or Qt6)
+
+```bash
+mkdir build && cd build
+cmake .. -DBUILD_GUI=ON
+make -j$(nproc)
+```
+
+This builds both the CLI (`ply2lcc`) and GUI (`ply2lcc_gui`) executables.
 
 ## Usage
 
@@ -43,6 +55,28 @@ make -j$(nproc)
 | `-x, --cell-x` | Grid cell size X (meters) | 30.0 |
 | `-y, --cell-y` | Grid cell size Y (meters) | 30.0 |
 | `--single-lod` | Treat input as single LOD | false |
+
+## GUI Usage
+
+The GUI provides a user-friendly interface for users unfamiliar with command line tools.
+
+```bash
+./ply2lcc_gui
+```
+
+### Features
+
+- **File pickers**: Browse for input PLY files and output directory
+- **Input filter**: File picker filters for `point_cloud*.ply` files by default
+- **Settings panel**:
+  - Cell Size X/Y: Grid cell dimensions in meters
+  - Single LOD mode: Disable LOD hierarchy
+  - Include environment: Auto-detected based on `environment.ply` presence
+  - Include collision: Coming soon (disabled)
+- **Progress bar**: Real-time conversion progress
+- **Log display**: Timestamped conversion messages
+
+The GUI automatically detects if `environment.ply` exists in the same directory as the input file and enables/disables the environment checkbox accordingly.
 
 ## Output Files
 
