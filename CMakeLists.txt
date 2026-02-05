@@ -32,21 +32,12 @@ target_compile_options(ply2lcc PRIVATE
 
 target_link_libraries(ply2lcc PRIVATE OpenMP::OpenMP_CXX)
 
-# Testing
+# Options
 option(BUILD_TESTS "Build unit tests" ON)
+option(BUILD_GUI "Build Qt GUI application" OFF)
 
-if(BUILD_TESTS)
-    include(FetchContent)
-    FetchContent_Declare(
-        googletest
-        URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.zip
-    )
-    set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-    FetchContent_MakeAvailable(googletest)
-
-    enable_testing()
-
-    # Create a library for the converter code (to link with tests)
+# Build shared library if tests or GUI are enabled
+if(BUILD_TESTS OR BUILD_GUI)
     add_library(ply2lcc_lib STATIC
         src/convert_app.cpp
         src/splat_buffer.cpp
@@ -63,6 +54,19 @@ if(BUILD_TESTS)
         ${CMAKE_SOURCE_DIR}/external
     )
     target_link_libraries(ply2lcc_lib PUBLIC OpenMP::OpenMP_CXX)
+endif()
+
+# Testing
+if(BUILD_TESTS)
+    include(FetchContent)
+    FetchContent_Declare(
+        googletest
+        URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.zip
+    )
+    set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(googletest)
+
+    enable_testing()
 
     # Unit tests
     add_executable(test_compression tests/test_compression.cpp)
@@ -81,9 +85,7 @@ if(BUILD_TESTS)
     gtest_discover_tests(test_integration)
 endif()
 
-# GUI (optional)
-option(BUILD_GUI "Build Qt GUI application" OFF)
-
+# GUI
 if(BUILD_GUI)
     add_subdirectory(gui)
 endif()
