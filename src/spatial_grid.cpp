@@ -37,6 +37,18 @@ void SpatialGrid::add_splat(size_t lod, const Vec3f& pos, size_t splat_idx) {
     }
 }
 
+void SpatialGrid::merge(const ThreadLocalGrid& local, size_t lod) {
+    for (const auto& [cell_id, indices] : local.cell_indices) {
+        auto it = cells_.find(cell_id);
+        if (it == cells_.end()) {
+            auto result = cells_.emplace(cell_id, GridCell(cell_id, num_lods_));
+            it = result.first;
+        }
+        auto& target = it->second.splat_indices[lod];
+        target.insert(target.end(), indices.begin(), indices.end());
+    }
+}
+
 bool SpatialGrid::write_index_bin(const std::string& path,
                                   const std::vector<LCCUnitInfo>& units,
                                   size_t num_lods) const {

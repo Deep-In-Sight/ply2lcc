@@ -21,6 +21,9 @@ public:
     // Add splat index to the grid
     void add_splat(size_t lod, const Vec3f& pos, size_t splat_idx);
 
+    // Merge a thread-local grid into this grid
+    void merge(const ThreadLocalGrid& local, size_t lod);
+
     // Get all cells with their splat indices
     const std::map<uint32_t, GridCell>& get_cells() const { return cells_; }
 
