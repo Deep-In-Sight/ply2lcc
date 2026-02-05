@@ -90,11 +90,16 @@ bool MetaWriter::write(const std::string& path, const MetaInfo& meta) {
     file << "\t\t\t\"max\": [1, 1, 1]\n";
     file << "\t\t},\n";
 
-    // SH coefficients
+    // SH coefficients - use placeholder for Portable mode
     file << "\t\t{\n";
     file << "\t\t\t\"name\": \"shcoef\",\n";
-    file << "\t\t\t\"min\": [" << meta.attr_ranges.sh_min.x << ", " << meta.attr_ranges.sh_min.y << ", " << meta.attr_ranges.sh_min.z << "],\n";
-    file << "\t\t\t\"max\": [" << meta.attr_ranges.sh_max.x << ", " << meta.attr_ranges.sh_max.y << ", " << meta.attr_ranges.sh_max.z << "]\n";
+    if (meta.file_type == "Portable") {
+        file << "\t\t\t\"min\": [0, 0, 0],\n";
+        file << "\t\t\t\"max\": [1, 1, 1]\n";
+    } else {
+        file << "\t\t\t\"min\": [" << meta.attr_ranges.sh_min.x << ", " << meta.attr_ranges.sh_min.y << ", " << meta.attr_ranges.sh_min.z << "],\n";
+        file << "\t\t\t\"max\": [" << meta.attr_ranges.sh_max.x << ", " << meta.attr_ranges.sh_max.y << ", " << meta.attr_ranges.sh_max.z << "]\n";
+    }
     file << "\t\t},\n";
 
     // Opacity
@@ -120,7 +125,11 @@ bool MetaWriter::write(const std::string& path, const MetaInfo& meta) {
 
     file << "\t\t{\n";
     file << "\t\t\t\"name\": \"envshcoef\",\n";
-    if (meta.has_environment) {
+    if (meta.file_type == "Portable") {
+        // Portable mode: use placeholder values
+        file << "\t\t\t\"min\": [0, 0, 0],\n";
+        file << "\t\t\t\"max\": [1, 1, 1]\n";
+    } else if (meta.has_environment) {
         file << "\t\t\t\"min\": [" << meta.env_bounds.sh_min.x << ", " << meta.env_bounds.sh_min.y << ", " << meta.env_bounds.sh_min.z << "],\n";
         file << "\t\t\t\"max\": [" << meta.env_bounds.sh_max.x << ", " << meta.env_bounds.sh_max.y << ", " << meta.env_bounds.sh_max.z << "]\n";
     } else {

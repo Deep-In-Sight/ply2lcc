@@ -38,8 +38,9 @@ void encode_scale(const Vec3f& log_scale,
 }
 
 uint32_t encode_rotation(const float rot[4]) {
-    // Input: rot[0]=w, rot[1]=x, rot[2]=y, rot[3]=z
-    // LCC encoding uses: find largest component, drop it, encode xyz in 10-10-10-2
+    // Input: rot[0]=w, rot[1]=x, rot[2]=y, rot[3]=z (PLY format)
+    // LCC uses (x,y,z,w) order internally for index selection
+    // idx indicates which component in (x,y,z,w) was dropped and computed
 
     float w = rot[0], x = rot[1], y = rot[2], z = rot[3];
 
@@ -49,32 +50,43 @@ uint32_t encode_rotation(const float rot[4]) {
         w /= len; x /= len; y /= len; z /= len;
     }
 
-    // Find largest absolute component
+    // Find largest absolute component in (w,x,y,z) order
     float abs_vals[4] = {std::fabs(w), std::fabs(x), std::fabs(y), std::fabs(z)};
-    int max_idx = 0;
+    int max_idx_wxyz = 0;
     for (int i = 1; i < 4; ++i) {
-        if (abs_vals[i] > abs_vals[max_idx]) max_idx = i;
+        if (abs_vals[i] > abs_vals[max_idx_wxyz]) max_idx_wxyz = i;
     }
 
     // Ensure the dropped component is positive (negate quaternion if needed)
     float quat[4] = {w, x, y, z};
-    if (quat[max_idx] < 0) {
+    if (quat[max_idx_wxyz] < 0) {
         w = -w; x = -x; y = -y; z = -z;
     }
 
-    // Get the three components to encode (excluding max_idx)
-    // Reorder to match LCC's QLut decoding
-    float enc[3];
+    // LCC uses (x,y,z,w) order. Map from wxyz index to LCC index:
+    // wxyz idx 0 (w largest) -> LCC idx 3 (w at position 3 in xyzw)
+    // wxyz idx 1 (x largest) -> LCC idx 0 (x at position 0 in xyzw)
+    // wxyz idx 2 (y largest) -> LCC idx 1 (y at position 1 in xyzw)
+    // wxyz idx 3 (z largest) -> LCC idx 2 (z at position 2 in xyzw)
+    static const int wxyz_to_lcc_idx[4] = {3, 0, 1, 2};
+    int lcc_idx = wxyz_to_lcc_idx[max_idx_wxyz];
+
+    // Encoding order derived from QLut decoding:
+    // LCC idx 0: encode (y,z,w) = rot[2,3,0]
+    // LCC idx 1: encode (x,z,w) = rot[1,3,0]
+    // LCC idx 2: encode (x,y,w) = rot[1,2,0]
+    // LCC idx 3: encode (x,y,z) = rot[1,2,3]
     static const int order[4][3] = {
-        {1, 2, 3},  // drop w: encode x, y, z
-        {0, 2, 3},  // drop x: encode w, y, z
-        {0, 1, 3},  // drop y: encode w, x, z
-        {0, 1, 2}   // drop z: encode w, x, y
+        {2, 3, 0},  // LCC idx 0: encode y, z, w
+        {1, 3, 0},  // LCC idx 1: encode x, z, w
+        {1, 2, 0},  // LCC idx 2: encode x, y, w
+        {1, 2, 3}   // LCC idx 3: encode x, y, z
     };
 
     float src[4] = {w, x, y, z};
+    float enc[3];
     for (int i = 0; i < 3; ++i) {
-        enc[i] = src[order[max_idx][i]];
+        enc[i] = src[order[lcc_idx][i]];
     }
 
     // Scale from [-1/sqrt2, 1/sqrt2] to [0, 1]
@@ -90,10 +102,9 @@ uint32_t encode_rotation(const float rot[4]) {
     uint32_t p0 = encode_component(enc[0]);
     uint32_t p1 = encode_component(enc[1]);
     uint32_t p2 = encode_component(enc[2]);
-    uint32_t idx = static_cast<uint32_t>(max_idx);
 
-    // Pack: bits 0-9 = p0, bits 10-19 = p1, bits 20-29 = p2, bits 30-31 = idx
-    return p0 | (p1 << 10) | (p2 << 20) | (idx << 30);
+    // Pack: bits 0-9 = p0, bits 10-19 = p1, bits 20-29 = p2, bits 30-31 = lcc_idx
+    return p0 | (p1 << 10) | (p2 << 20) | (static_cast<uint32_t>(lcc_idx) << 30);
 }
 
 uint32_t encode_sh_triplet(float r, float g, float b, float sh_min, float sh_max) {

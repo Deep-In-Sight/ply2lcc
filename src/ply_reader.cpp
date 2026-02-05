@@ -1,9 +1,21 @@
 #include "ply_reader.hpp"
 #include "miniply/miniply.h"
+#include <algorithm>
 #include <cstring>
 #include <iostream>
 
 namespace ply2lcc {
+
+// Compute sh_degree from number of f_rest properties
+// num_f_rest = ((sh_degree+1)^2 - 1) * 3
+static int compute_sh_degree(int num_f_rest) {
+    if (num_f_rest == 0) return 0;
+    if (num_f_rest == 9) return 1;   // (4-1)*3
+    if (num_f_rest == 24) return 2;  // (9-1)*3
+    if (num_f_rest == 45) return 3;  // (16-1)*3
+    if (num_f_rest == 72) return 4;  // (25-1)*3
+    return 3;  // default to degree 3 for unknown
+}
 
 bool PLYReader::read_header(const std::string& path, PLYHeader& header) {
     miniply::PLYReader reader(path.c_str());
@@ -24,8 +36,19 @@ bool PLYReader::read_header(const std::string& path, PLYHeader& header) {
 
     header.vertex_count = reader.num_rows();
 
-    // Check for SH coefficients
-    header.has_sh = (reader.find_property("f_rest_0") != miniply::kInvalidIndex);
+    // Count f_rest properties to determine sh_degree
+    header.num_f_rest = 0;
+    for (int i = 0; i < 128; ++i) {  // max reasonable count
+        char name[16];
+        snprintf(name, sizeof(name), "f_rest_%d", i);
+        if (reader.find_property(name) == miniply::kInvalidIndex) {
+            break;
+        }
+        header.num_f_rest++;
+    }
+
+    header.sh_degree = compute_sh_degree(header.num_f_rest);
+    header.has_sh = (header.num_f_rest > 0);
 
     return true;
 }
@@ -83,17 +106,25 @@ bool PLYReader::read_splats(const std::string& path,
         return false;
     }
 
-    // Find f_rest properties
-    uint32_t f_rest_idx[45];
-    header.has_sh = true;
-    for (int i = 0; i < 45; ++i) {
+    // Count and find f_rest properties
+    header.num_f_rest = 0;
+    for (int i = 0; i < 128; ++i) {
+        char name[16];
+        snprintf(name, sizeof(name), "f_rest_%d", i);
+        if (reader.find_property(name) == miniply::kInvalidIndex) {
+            break;
+        }
+        header.num_f_rest++;
+    }
+    header.sh_degree = compute_sh_degree(header.num_f_rest);
+    header.has_sh = (header.num_f_rest > 0);
+
+    // Get indices for f_rest properties that exist
+    std::vector<uint32_t> f_rest_idx(header.num_f_rest);
+    for (int i = 0; i < header.num_f_rest; ++i) {
         char name[16];
         snprintf(name, sizeof(name), "f_rest_%d", i);
         f_rest_idx[i] = reader.find_property(name);
-        if (f_rest_idx[i] == miniply::kInvalidIndex) {
-            header.has_sh = false;
-            break;
-        }
     }
 
     // Load element data
@@ -106,7 +137,7 @@ bool PLYReader::read_splats(const std::string& path,
     std::vector<float> positions(num_verts * 3);
     std::vector<float> normals(num_verts * 3);
     std::vector<float> f_dc(num_verts * 3);
-    std::vector<float> f_rest(header.has_sh ? num_verts * 45 : 0);
+    std::vector<float> f_rest(header.has_sh ? num_verts * header.num_f_rest : 0);
     std::vector<float> opacities(num_verts);
     std::vector<float> scales(num_verts * 3);
     std::vector<float> rotations(num_verts * 4);
@@ -124,11 +155,11 @@ bool PLYReader::read_splats(const std::string& path,
     reader.extract_properties(rot_idx, 4, miniply::PLYPropertyType::Float, rotations.data());
 
     if (header.has_sh) {
-        for (int i = 0; i < 45; ++i) {
+        for (int i = 0; i < header.num_f_rest; ++i) {
             std::vector<float> tmp(num_verts);
             reader.extract_properties(&f_rest_idx[i], 1, miniply::PLYPropertyType::Float, tmp.data());
             for (uint32_t v = 0; v < num_verts; ++v) {
-                f_rest[v * 45 + i] = tmp[v];
+                f_rest[v * header.num_f_rest + i] = tmp[v];
             }
         }
     }
@@ -149,12 +180,13 @@ bool PLYReader::read_splats(const std::string& path,
         s.f_dc[1] = f_dc[i*3+1];
         s.f_dc[2] = f_dc[i*3+2];
 
+        // Copy f_rest, zero-padding if fewer than 45 coefficients
+        memset(s.f_rest, 0, sizeof(s.f_rest));
         if (header.has_sh) {
-            for (int j = 0; j < 45; ++j) {
-                s.f_rest[j] = f_rest[i*45 + j];
+            int copy_count = std::min(header.num_f_rest, 45);
+            for (int j = 0; j < copy_count; ++j) {
+                s.f_rest[j] = f_rest[i * header.num_f_rest + j];
             }
-        } else {
-            memset(s.f_rest, 0, sizeof(s.f_rest));
         }
 
         s.opacity = opacities[i];

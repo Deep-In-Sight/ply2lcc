@@ -6,17 +6,17 @@
 #include "spatial_grid.hpp"
 #include "meta_writer.hpp"
 #include "compression.hpp"
-#include "path_resolution.hpp"
 
 namespace fs = std::filesystem;
 using namespace ply2lcc;
 
 class IntegrationTest : public ::testing::Test {
 protected:
-    std::string test_data_ply_;
-    std::string test_data_lcc_;
+    std::string test_ply_file_;
+    std::string test_lcc_dir_;
 
     void SetUp() override {
+        // Look for test data in various locations
         std::vector<std::string> base_paths = {
             "../test_data",
             "test_data",
@@ -24,75 +24,49 @@ protected:
         };
 
         for (const auto& base : base_paths) {
-            if (fs::exists(base + "/scene_ply/point_cloud")) {
-                test_data_ply_ = base + "/scene_ply";  // Parent dir, not iteration dir
-                test_data_lcc_ = base + "/scene_lcc";
-                break;
+            // Try cheonan dataset first
+            std::string cheonan_ply = base + "/cheonan/ply/point_cloud/iteration_100/point_cloud.ply";
+            if (fs::exists(cheonan_ply)) {
+                test_ply_file_ = cheonan_ply;
+                test_lcc_dir_ = base + "/cheonan/lcc/LCC_Results";
+                return;
+            }
+            // Try generic scene_ply structure
+            std::string scene_dir = base + "/scene_ply/point_cloud";
+            if (fs::exists(scene_dir)) {
+                for (const auto& entry : fs::directory_iterator(scene_dir)) {
+                    if (entry.is_directory() && entry.path().filename().string().find("iteration") == 0) {
+                        std::string ply_path = entry.path().string() + "/point_cloud.ply";
+                        if (fs::exists(ply_path)) {
+                            test_ply_file_ = ply_path;
+                            test_lcc_dir_ = base + "/scene_lcc/LCC_Results";
+                            return;
+                        }
+                    }
+                }
             }
         }
 
-        if (test_data_ply_.empty() || !fs::exists(test_data_ply_ + "/point_cloud")) {
-            GTEST_SKIP() << "Test data not available. Expected structure: "
-                         << "test_data/scene_ply/point_cloud/iteration_*/";
+        if (test_ply_file_.empty()) {
+            GTEST_SKIP() << "Test data not available";
         }
-    }
-
-    std::string getTestPlyPath() {
-        auto result = resolve_input_path(test_data_ply_);
-        if (!result.has_value()) {
-            return "";
-        }
-
-        // Return path to point_cloud.ply in resolved iteration dir
-        std::string ply_path = result->path + "/point_cloud.ply";
-        if (fs::exists(ply_path)) {
-            return ply_path;
-        }
-
-        // Fallback: any point_cloud*.ply
-        for (const auto& entry : fs::directory_iterator(result->path)) {
-            if (entry.path().extension() == ".ply" &&
-                entry.path().filename().string().find("point_cloud") == 0) {
-                return entry.path().string();
-            }
-        }
-        return "";
-    }
-
-    std::string getIterationDir() {
-        auto result = resolve_input_path(test_data_ply_);
-        return result.has_value() ? result->path : "";
-    }
-
-    std::string getReferenceLccPath() {
-        std::string lcc_results = test_data_lcc_ + "/LCC_Results";
-        if (fs::exists(lcc_results)) {
-            return lcc_results;
-        }
-        return test_data_lcc_;
     }
 };
 
 TEST_F(IntegrationTest, ReadPLYFile) {
-    std::string ply_path = getTestPlyPath();
-    ASSERT_FALSE(ply_path.empty()) << "No PLY file found in test_data/scene_ply/";
-
     PLYHeader header;
     std::vector<Splat> splats;
 
-    ASSERT_TRUE(PLYReader::read_splats(ply_path, splats, header));
+    ASSERT_TRUE(PLYReader::read_splats(test_ply_file_, splats, header));
     EXPECT_GT(splats.size(), 0u);
     EXPECT_GT(header.vertex_count, 0u);
     EXPECT_EQ(splats.size(), header.vertex_count);
 }
 
 TEST_F(IntegrationTest, PLYBoundingBox) {
-    std::string ply_path = getTestPlyPath();
-    ASSERT_FALSE(ply_path.empty());
-
     PLYHeader header;
     std::vector<Splat> splats;
-    ASSERT_TRUE(PLYReader::read_splats(ply_path, splats, header));
+    ASSERT_TRUE(PLYReader::read_splats(test_ply_file_, splats, header));
 
     // BBox should be valid (min < max)
     EXPECT_LT(header.bbox.min.x, header.bbox.max.x);
@@ -101,34 +75,28 @@ TEST_F(IntegrationTest, PLYBoundingBox) {
 }
 
 TEST_F(IntegrationTest, FullConversionPipeline) {
-    std::string iteration_dir = getIterationDir();
-    ASSERT_FALSE(iteration_dir.empty());
-
-    std::string ply_path = getTestPlyPath();
-    ASSERT_FALSE(ply_path.empty());
-
-    // Create temp output directory (LCC_Results structure)
-    std::string output_base = "/tmp/ply2lcc_test_" + std::to_string(std::time(nullptr));
-    std::string output_dir = output_base + "/LCC_Results";
+    // Create temp output directory
+    std::string output_dir = "/tmp/ply2lcc_test_" + std::to_string(std::time(nullptr));
     fs::create_directories(output_dir);
 
     // Read PLY
     PLYHeader header;
     std::vector<Splat> splats;
-    ASSERT_TRUE(PLYReader::read_splats(ply_path, splats, header));
+    ASSERT_TRUE(PLYReader::read_splats(test_ply_file_, splats, header));
 
     // Compute ranges
     AttributeRanges ranges;
+    int bands_per_channel = (header.has_sh && header.num_f_rest > 0) ? header.num_f_rest / 3 : 0;
+
     for (const auto& s : splats) {
         Vec3f linear_scale(std::exp(s.scale.x), std::exp(s.scale.y), std::exp(s.scale.z));
         ranges.expand_scale(linear_scale);
         ranges.expand_opacity(sigmoid(s.opacity));
-        if (header.has_sh) {
-            // f_rest has 45 coefficients: 15 bands × 3 channels (RGB interleaved)
-            for (int band = 0; band < 15; ++band) {
-                float r = s.f_rest[band * 3 + 0];
-                float g = s.f_rest[band * 3 + 1];
-                float b = s.f_rest[band * 3 + 2];
+        if (header.has_sh && bands_per_channel > 0) {
+            for (int band = 0; band < bands_per_channel; ++band) {
+                float r = s.f_rest[band];
+                float g = s.f_rest[band + bands_per_channel];
+                float b = s.f_rest[band + 2 * bands_per_channel];
                 ranges.expand_sh(r, g, b);
             }
         }
@@ -154,8 +122,8 @@ TEST_F(IntegrationTest, FullConversionPipeline) {
     }
     writer.finalize();
 
-    // Write Index.bin
-    ASSERT_TRUE(grid.write_index_bin(output_dir + "/Index.bin", writer.get_units(), 1));
+    // Write index.bin
+    ASSERT_TRUE(grid.write_index_bin(output_dir + "/index.bin", writer.get_units(), 1));
 
     // Write meta.lcc
     MetaInfo meta;
@@ -172,62 +140,51 @@ TEST_F(IntegrationTest, FullConversionPipeline) {
     ASSERT_TRUE(MetaWriter::write(output_dir + "/meta.lcc", meta));
 
     // Verify output files exist
-    EXPECT_TRUE(fs::exists(output_dir + "/Data.bin"));
-    EXPECT_TRUE(fs::exists(output_dir + "/Index.bin"));
+    EXPECT_TRUE(fs::exists(output_dir + "/data.bin"));
+    EXPECT_TRUE(fs::exists(output_dir + "/index.bin"));
     EXPECT_TRUE(fs::exists(output_dir + "/meta.lcc"));
     if (header.has_sh) {
-        EXPECT_TRUE(fs::exists(output_dir + "/Shcoef.bin"));
+        EXPECT_TRUE(fs::exists(output_dir + "/shcoef.bin"));
     }
 
-    // Verify Data.bin size
-    auto data_size = fs::file_size(output_dir + "/Data.bin");
+    // Verify data.bin size
+    auto data_size = fs::file_size(output_dir + "/data.bin");
     EXPECT_EQ(data_size, splats.size() * 32);
 
-    // Verify Shcoef.bin size if exists
+    // Verify shcoef.bin size if exists
     if (header.has_sh) {
-        auto sh_size = fs::file_size(output_dir + "/Shcoef.bin");
+        auto sh_size = fs::file_size(output_dir + "/shcoef.bin");
         EXPECT_EQ(sh_size, splats.size() * 64);
     }
 
     // Cleanup
-    fs::remove_all(output_base);
+    fs::remove_all(output_dir);
 }
 
 TEST_F(IntegrationTest, CompareWithReferenceLCC) {
-    std::string ref_dir = getReferenceLccPath();
-
-    // Find meta.lcc file (might have different name)
-    std::string ref_meta;
-    for (const auto& entry : fs::directory_iterator(ref_dir)) {
-        if (entry.path().extension() == ".lcc") {
-            ref_meta = entry.path().string();
-            break;
-        }
-    }
-    if (ref_meta.empty()) {
-        GTEST_SKIP() << "Reference .lcc file not found in " << ref_dir;
+    if (!fs::exists(test_lcc_dir_)) {
+        GTEST_SKIP() << "Reference LCC not available at " << test_lcc_dir_;
     }
 
     // Find data.bin
-    std::string ref_data = ref_dir + "/data.bin";
+    std::string ref_data = test_lcc_dir_ + "/data.bin";
     if (!fs::exists(ref_data)) {
-        ref_data = ref_dir + "/Data.bin";
+        ref_data = test_lcc_dir_ + "/Data.bin";
     }
-    ASSERT_TRUE(fs::exists(ref_data)) << "Reference data.bin not found in " << ref_dir;
+    ASSERT_TRUE(fs::exists(ref_data)) << "Reference data.bin not found";
 
     // Verify data.bin is multiple of 32 bytes
     auto size = fs::file_size(ref_data);
     EXPECT_EQ(size % 32, 0u) << "Reference data.bin size not multiple of 32";
 
     // Verify shcoef.bin if exists
-    std::string ref_sh = ref_dir + "/shcoef.bin";
+    std::string ref_sh = test_lcc_dir_ + "/shcoef.bin";
     if (!fs::exists(ref_sh)) {
-        ref_sh = ref_dir + "/Shcoef.bin";
+        ref_sh = test_lcc_dir_ + "/Shcoef.bin";
     }
     if (fs::exists(ref_sh)) {
         auto sh_size = fs::file_size(ref_sh);
         EXPECT_EQ(sh_size % 64, 0u) << "Reference shcoef.bin size not multiple of 64";
-        // Verify data.bin and shcoef.bin have consistent splat counts
-        EXPECT_EQ(size / 32, sh_size / 64) << "Splat count mismatch between data.bin and shcoef.bin";
+        EXPECT_EQ(size / 32, sh_size / 64) << "Splat count mismatch";
     }
 }

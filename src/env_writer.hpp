@@ -14,10 +14,13 @@ public:
                                  std::vector<Splat>& splats,
                                  EnvBounds& bounds);
 
-    // Write Environment.bin (combined data + SH, 96 bytes per splat)
+    // Write Environment.bin
+    // For Quality mode (has_sh=true): 96 bytes per splat (32 data + 64 SH)
+    // For Portable mode (has_sh=false): 32 bytes per splat (data only)
     static bool write_environment_bin(const std::string& output_path,
                                       const std::vector<Splat>& splats,
-                                      const EnvBounds& bounds);
+                                      const EnvBounds& bounds,
+                                      bool has_sh);
 };
 
 }  // namespace ply2lcc

@@ -16,7 +16,9 @@ struct PLYHeader {
     Vec3f scale_transform{1, 1, 1};
     std::string source;
     int epsg = 0;
-    bool has_sh = true;  // Has f_rest properties
+    bool has_sh = false;      // Has f_rest properties
+    int sh_degree = 0;        // SH degree (0-4), inferred from f_rest count
+    int num_f_rest = 0;       // Number of f_rest properties
 };
 
 class PLYReader {

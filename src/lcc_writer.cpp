@@ -19,15 +19,15 @@ LCCWriter::LCCWriter(const std::string& output_dir,
 {
     fs::create_directories(output_dir);
 
-    data_file_.open(output_dir + "/Data.bin", std::ios::binary);
+    data_file_.open(output_dir + "/data.bin", std::ios::binary);
     if (!data_file_) {
-        throw std::runtime_error("Failed to create Data.bin");
+        throw std::runtime_error("Failed to create data.bin");
     }
 
     if (has_sh) {
-        sh_file_.open(output_dir + "/Shcoef.bin", std::ios::binary);
+        sh_file_.open(output_dir + "/shcoef.bin", std::ios::binary);
         if (!sh_file_) {
-            throw std::runtime_error("Failed to create Shcoef.bin");
+            throw std::runtime_error("Failed to create shcoef.bin");
         }
     }
 }

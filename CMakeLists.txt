@@ -7,13 +7,14 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 add_executable(ply2lcc
     src/main.cpp
+    src/convert_app.cpp
     src/ply_reader.cpp
     src/compression.cpp
     src/lcc_writer.cpp
     src/spatial_grid.cpp
     src/meta_writer.cpp
-    src/path_resolution.cpp
     src/env_writer.cpp
+    src/attrs_writer.cpp
     external/miniply/miniply.cpp
 )
 
@@ -42,13 +43,14 @@ if(BUILD_TESTS)
 
     # Create a library for the converter code (to link with tests)
     add_library(ply2lcc_lib STATIC
+        src/convert_app.cpp
         src/ply_reader.cpp
         src/compression.cpp
         src/lcc_writer.cpp
         src/spatial_grid.cpp
         src/meta_writer.cpp
-        src/path_resolution.cpp
         src/env_writer.cpp
+        src/attrs_writer.cpp
         external/miniply/miniply.cpp
     )
     target_include_directories(ply2lcc_lib PUBLIC
@@ -67,13 +69,8 @@ if(BUILD_TESTS)
     add_executable(test_integration tests/test_integration.cpp)
     target_link_libraries(test_integration ply2lcc_lib GTest::gtest_main)
 
-    # Path resolution tests
-    add_executable(test_path_resolution tests/test_path_resolution.cpp)
-    target_link_libraries(test_path_resolution ply2lcc_lib GTest::gtest_main)
-
     include(GoogleTest)
     gtest_discover_tests(test_compression)
     gtest_discover_tests(test_types)
     gtest_discover_tests(test_integration)
-    gtest_discover_tests(test_path_resolution)
 endif()

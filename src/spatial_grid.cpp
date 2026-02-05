@@ -42,7 +42,7 @@ bool SpatialGrid::write_index_bin(const std::string& path,
                                   size_t num_lods) const {
     std::ofstream file(path, std::ios::binary);
     if (!file) {
-        std::cerr << "Failed to create Index.bin\n";
+        std::cerr << "Failed to create index.bin\n";
         return false;
     }
 
