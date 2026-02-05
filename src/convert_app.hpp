@@ -2,8 +2,12 @@
 #define PLY2LCC_CONVERT_APP_HPP
 
 #include "types.hpp"
+#include "lcc_writer.hpp"
+#include "spatial_grid.hpp"
 #include <string>
 #include <vector>
+#include <map>
+#include <memory>
 
 namespace ply2lcc {
 
@@ -16,9 +20,9 @@ private:
     void parseArgs();
     void findPlyFiles();
     void validateOutput();
-    void computeBounds();
-    void buildSpatialGrid();
-    void writeLccData();
+    void buildSpatialGridParallel();  // Replaces computeBounds + buildSpatialGrid
+    void encodeAllLods();
+    void writeEncodedData();
     void writeEnvironment();
     void writeIndex();
     void writeMeta();
@@ -42,8 +46,7 @@ private:
     std::string env_file_;
     bool has_env_ = false;
 
-    // Conversion data
-    std::vector<std::vector<Splat>> all_splats_;
+    // Conversion data (no more all_splats_!)
     std::vector<size_t> splats_per_lod_;
     BBox global_bbox_;
     AttributeRanges global_ranges_;
@@ -53,6 +56,11 @@ private:
     int sh_degree_ = 0;
     int num_f_rest_ = 0;
     size_t total_splats_ = 0;
+
+    // Spatial grid and parallel encoding state
+    std::unique_ptr<SpatialGrid> grid_;
+    std::map<uint32_t, std::vector<EncodedCell>> encoded_cells_;  // cell_id -> LOD data
+    std::vector<LCCUnitInfo> units_;
 };
 
 } // namespace ply2lcc
