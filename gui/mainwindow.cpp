@@ -1,8 +1,10 @@
 #include "mainwindow.hpp"
 
 #include <QCheckBox>
+#include <QDir>
 #include <QDoubleSpinBox>
 #include <QFileDialog>
+#include <QFileInfo>
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -115,6 +117,7 @@ void MainWindow::setupUi() {
     connect(m_browseOutputBtn, &QPushButton::clicked, this, &MainWindow::browseOutput);
     connect(m_convertBtn, &QPushButton::clicked, this, &MainWindow::startConversion);
     connect(m_inputPathEdit, &QLineEdit::textChanged, this, &MainWindow::updateConvertButtonState);
+    connect(m_inputPathEdit, &QLineEdit::textChanged, this, &MainWindow::onInputPathChanged);
     connect(m_outputDirEdit, &QLineEdit::textChanged, this, &MainWindow::updateConvertButtonState);
 }
 
@@ -163,6 +166,35 @@ void MainWindow::updateConvertButtonState() {
     m_convertBtn->setEnabled(canConvert);
 }
 
+void MainWindow::onInputPathChanged(const QString& path) {
+    bool hasEnv = checkEnvironmentExists(path);
+    m_includeEnvCheck->setEnabled(hasEnv);
+    if (!hasEnv) {
+        m_includeEnvCheck->setChecked(false);
+        m_includeEnvCheck->setToolTip("environment.ply not found in input directory");
+    } else {
+        m_includeEnvCheck->setToolTip("");
+    }
+}
+
+bool MainWindow::checkEnvironmentExists(const QString& inputPath) {
+    if (inputPath.isEmpty()) {
+        return false;
+    }
+
+    QFileInfo fileInfo(inputPath);
+    QString dir;
+
+    if (fileInfo.isDir()) {
+        dir = inputPath;
+    } else {
+        dir = fileInfo.absolutePath();
+    }
+
+    QString envPath = QDir(dir).filePath("environment.ply");
+    return QFileInfo::exists(envPath);
+}
+
 void MainWindow::setInputsEnabled(bool enabled) {
     m_inputPathEdit->setEnabled(enabled);
     m_outputDirEdit->setEnabled(enabled);
@@ -171,7 +203,9 @@ void MainWindow::setInputsEnabled(bool enabled) {
     m_cellSizeXSpin->setEnabled(enabled);
     m_cellSizeYSpin->setEnabled(enabled);
     m_singleLodCheck->setEnabled(enabled);
-    m_includeEnvCheck->setEnabled(enabled);
+    // Only enable env checkbox if environment.ply exists
+    bool hasEnv = checkEnvironmentExists(m_inputPathEdit->text());
+    m_includeEnvCheck->setEnabled(enabled && hasEnv);
     // m_includeCollisionCheck stays disabled (coming soon)
     m_convertBtn->setEnabled(enabled && !m_inputPathEdit->text().isEmpty() &&
                              !m_outputDirEdit->text().isEmpty());

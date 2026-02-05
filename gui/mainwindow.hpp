@@ -35,10 +35,12 @@ private slots:
     void browseOutput();
     void startConversion();
     void updateConvertButtonState();
+    void onInputPathChanged(const QString& path);
 
 private:
     void setupUi();
     void setInputsEnabled(bool enabled);
+    bool checkEnvironmentExists(const QString& inputPath);
 
     // Input/Output widgets
     QLineEdit* m_inputPathEdit;
