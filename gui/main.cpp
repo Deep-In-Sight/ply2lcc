@@ -9,16 +9,15 @@ int main(int argc, char* argv[]) {
 
     MainWindow window;
 
-    // Connect MainWindow's conversionRequested signal to create and start worker
     QObject::connect(&window, &MainWindow::conversionRequested,
         [&window](const QString& inputPath, const QString& outputDir,
-                  float cellX, float cellY, bool singleLod, bool includeEnv) {
+                  double cellX, double cellY, bool singleLod, bool includeEnv) {
 
             ply2lcc::ConvertConfig config;
             config.input_path = inputPath.toStdString();
             config.output_dir = outputDir.toStdString();
-            config.cell_size_x = cellX;
-            config.cell_size_y = cellY;
+            config.cell_size_x = static_cast<float>(cellX);
+            config.cell_size_y = static_cast<float>(cellY);
             config.single_lod = singleLod;
             config.include_env = includeEnv;
 
@@ -31,9 +30,12 @@ int main(int argc, char* argv[]) {
             QObject::connect(worker, &ConvertWorker::finished,
                            &window, &MainWindow::onConversionFinished);
 
-            // Clean up worker when done
+            // Clean up worker when done - wait for thread to finish first
             QObject::connect(worker, &ConvertWorker::finished,
-                           worker, &QObject::deleteLater);
+                           [worker](bool, const QString&) {
+                               worker->wait();
+                               worker->deleteLater();
+                           });
 
             worker->start();
         });
