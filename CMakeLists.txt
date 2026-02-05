@@ -79,3 +79,10 @@ if(BUILD_TESTS)
     gtest_discover_tests(test_types)
     gtest_discover_tests(test_integration)
 endif()
+
+# GUI (optional)
+option(BUILD_GUI "Build Qt GUI application" OFF)
+
+if(BUILD_GUI)
+    add_subdirectory(gui)
+endif()
