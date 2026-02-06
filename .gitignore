@@ -30,3 +30,4 @@ compile_commands.json
 release/
 build_release/
 tools/
+.worktrees/
