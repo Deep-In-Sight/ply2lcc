@@ -77,6 +77,35 @@ inline void file_close(FileHandle& h) {
     h.file_size = 0;
 }
 
+/// Map region of file into memory (read-only)
+/// Returns nullptr on failure
+inline void* mmap_read(FileHandle& h, std::size_t offset, std::size_t length) {
+    if (!h.valid()) return nullptr;
+#ifdef _WIN32
+    if (!h.mapping) {
+        h.mapping = CreateFileMappingW(h.file, nullptr, PAGE_READONLY, 0, 0, nullptr);
+        if (!h.mapping) return nullptr;
+    }
+    DWORD offset_high = static_cast<DWORD>(offset >> 32);
+    DWORD offset_low = static_cast<DWORD>(offset & 0xFFFFFFFF);
+    return MapViewOfFile(h.mapping, FILE_MAP_READ, offset_high, offset_low, length);
+#else
+    void* addr = ::mmap(nullptr, length, PROT_READ, MAP_PRIVATE, h.fd, static_cast<off_t>(offset));
+    return (addr == MAP_FAILED) ? nullptr : addr;
+#endif
+}
+
+/// Unmap previously mapped region
+inline void munmap(void* addr, std::size_t length) {
+    if (!addr) return;
+#ifdef _WIN32
+    (void)length;
+    UnmapViewOfFile(addr);
+#else
+    ::munmap(addr, length);
+#endif
+}
+
 } // namespace platform
 
 #endif // PLY2LCC_PLATFORM_HPP
