@@ -129,6 +129,38 @@ inline void madvise(void* addr, std::size_t length, AccessHint hint) {
 #endif
 }
 
+/// Open output file stream with Unicode path support
+inline std::ofstream ofstream_open(const fs::path& path,
+                                   std::ios::openmode mode = std::ios::binary) {
+#ifdef _WIN32
+    return std::ofstream(path.wstring(), mode);
+#else
+    return std::ofstream(path, mode);
+#endif
+}
+
+/// Open input file stream with Unicode path support
+inline std::ifstream ifstream_open(const fs::path& path,
+                                   std::ios::openmode mode = std::ios::binary) {
+#ifdef _WIN32
+    return std::ifstream(path.wstring(), mode);
+#else
+    return std::ifstream(path, mode);
+#endif
+}
+
+/// Open FILE* with Unicode path support
+/// Caller responsible for fclose()
+inline FILE* fopen(const fs::path& path, const char* mode) {
+#ifdef _WIN32
+    wchar_t wmode[8];
+    std::mbstowcs(wmode, mode, 8);
+    return _wfopen(path.wstring().c_str(), wmode);
+#else
+    return std::fopen(path.c_str(), mode);
+#endif
+}
+
 } // namespace platform
 
 #endif // PLY2LCC_PLATFORM_HPP
