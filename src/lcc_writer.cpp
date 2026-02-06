@@ -1,4 +1,5 @@
 #include "lcc_writer.hpp"
+#include "platform.hpp"
 #include <fstream>
 #include <sstream>
 #include <iomanip>
@@ -10,7 +11,7 @@ namespace fs = std::filesystem;
 
 namespace ply2lcc {
 
-LccWriter::LccWriter(const std::string& output_dir)
+LccWriter::LccWriter(const std::filesystem::path& output_dir)
     : output_dir_(output_dir) {
     fs::create_directories(output_dir_);
 }
@@ -27,7 +28,7 @@ void LccWriter::write(const LccData& data) {
 void LccWriter::write_environment(const LccData& data) {
     if (data.environment.empty()) return;
 
-    std::ofstream file(output_dir_ + "/environment.bin", std::ios::binary);
+    auto file = platform::ofstream_open(output_dir_ / "environment.bin");
     if (!file) return;
 
     file.write(reinterpret_cast<const char*>(data.environment.data.data()),
@@ -37,7 +38,7 @@ void LccWriter::write_environment(const LccData& data) {
 void LccWriter::write_collision(const LccData& data) {
     if (data.collision.empty()) return;
 
-    std::ofstream file(output_dir_ + "/collision.lci", std::ios::binary);
+    auto file = platform::ofstream_open(output_dir_ / "collision.lci");
     if (!file) {
         throw std::runtime_error("Failed to create collision.lci");
     }
@@ -134,14 +135,14 @@ void LccWriter::write_collision(const LccData& data) {
 }
 
 void LccWriter::write_data_bin(const LccData& data) {
-    std::ofstream data_file(output_dir_ + "/data.bin", std::ios::binary);
+    auto data_file = platform::ofstream_open(output_dir_ / "data.bin");
     if (!data_file) {
         throw std::runtime_error("Failed to create data.bin");
     }
 
     std::ofstream sh_file;
     if (data.has_sh) {
-        sh_file.open(output_dir_ + "/shcoef.bin", std::ios::binary);
+        sh_file = platform::ofstream_open(output_dir_ / "shcoef.bin");
         if (!sh_file) {
             throw std::runtime_error("Failed to create shcoef.bin");
         }
@@ -159,7 +160,7 @@ void LccWriter::write_data_bin(const LccData& data) {
 }
 
 void LccWriter::write_index_bin(const LccData& data) {
-    std::ofstream file(output_dir_ + "/index.bin", std::ios::binary);
+    auto file = platform::ofstream_open(output_dir_ / "index.bin");
     if (!file) {
         throw std::runtime_error("Failed to create index.bin");
     }
@@ -197,7 +198,7 @@ std::string LccWriter::generate_guid() {
 }
 
 void LccWriter::write_meta_lcc(const LccData& data) {
-    std::ofstream file(output_dir_ + "/meta.lcc");
+    auto file = platform::ofstream_open(output_dir_ / "meta.lcc", std::ios::out);
     if (!file) {
         throw std::runtime_error("Failed to create meta.lcc");
     }
@@ -333,7 +334,7 @@ void LccWriter::write_meta_lcc(const LccData& data) {
 }
 
 void LccWriter::write_attrs_lcp() {
-    std::ofstream file(output_dir_ + "/attrs.lcp");
+    auto file = platform::ofstream_open(output_dir_ / "attrs.lcp", std::ios::out);
     if (!file) {
         throw std::runtime_error("Failed to create attrs.lcp");
     }
