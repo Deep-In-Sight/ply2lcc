@@ -72,6 +72,34 @@ if ($HasGui) {
     }
 }
 
+# Copy vcpkg Qt dependencies that windeployqt misses
+Write-Host "Copying vcpkg dependencies..." -ForegroundColor Green
+$VcpkgBin = "C:\vcpkg\installed\x64-windows\bin"
+if (Test-Path $VcpkgBin) {
+    $VcpkgDeps = @(
+        "zlib1.dll",
+        "libpng16.dll",
+        "freetype.dll",
+        "harfbuzz.dll",
+        "brotlicommon.dll",
+        "brotlidec.dll",
+        "bz2.dll",
+        "double-conversion.dll",
+        "pcre2-16.dll",
+        "zstd.dll",
+        "md4c.dll",
+        "icudt78.dll",
+        "icuin78.dll",
+        "icuuc78.dll"
+    )
+    foreach ($dll in $VcpkgDeps) {
+        $src = Join-Path $VcpkgBin $dll
+        if (Test-Path $src) {
+            Copy-Item $src $OutputPath -Force
+        }
+    }
+}
+
 # Find and copy VC++ Runtime DLLs
 Write-Host "Copying VC++ Runtime DLLs..." -ForegroundColor Green
 $VCRedistPaths = @(
