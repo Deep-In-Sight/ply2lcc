@@ -3,7 +3,6 @@
 #include "types.hpp"
 #include "splat_buffer.hpp"
 #include "spatial_grid.hpp"
-#include "meta_writer.hpp"
 #include "compression.hpp"
 
 namespace fs = std::filesystem;

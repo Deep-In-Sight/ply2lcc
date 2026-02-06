@@ -17,6 +17,7 @@ add_executable(ply2lcc
     src/grid_encoder.cpp
     src/lcc_types.cpp
     src/lcc_writer.cpp
+    src/collision_encoder.cpp
     external/miniply/miniply.cpp
 )
 
@@ -52,6 +53,7 @@ if(BUILD_TESTS OR BUILD_GUI)
         src/grid_encoder.cpp
         src/lcc_types.cpp
         src/lcc_writer.cpp
+        src/collision_encoder.cpp
         external/miniply/miniply.cpp
     )
     target_include_directories(ply2lcc_lib PUBLIC

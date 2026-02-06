@@ -3,6 +3,32 @@
 
 namespace ply2lcc {
 
+BVHNode BVHNode::make_internal(const float* bmin, const float* bmax,
+                                uint32_t right, uint16_t axis) {
+    BVHNode n;
+    for (int i = 0; i < 3; ++i) {
+        n.bbox_min[i] = bmin[i];
+        n.bbox_max[i] = bmax[i];
+    }
+    n.data0 = right;
+    n.data1 = axis;
+    n.flags = 0;
+    return n;
+}
+
+BVHNode BVHNode::make_leaf(const float* bmin, const float* bmax,
+                            uint32_t offset, uint16_t count) {
+    BVHNode n;
+    for (int i = 0; i < 3; ++i) {
+        n.bbox_min[i] = bmin[i];
+        n.bbox_max[i] = bmax[i];
+    }
+    n.data0 = offset;
+    n.data1 = count;
+    n.flags = LEAF_FLAG;
+    return n;
+}
+
 void LccData::sort_cells() {
     std::sort(cells.begin(), cells.end(), [](const EncodedCellData& a, const EncodedCellData& b) {
         // Sort by cell_x first (column), then cell_y (row), then LOD

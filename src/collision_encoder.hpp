@@ -1,0 +1,50 @@
+#ifndef PLY2LCC_COLLISION_ENCODER_HPP
+#define PLY2LCC_COLLISION_ENCODER_HPP
+
+#include "lcc_types.hpp"
+#include <string>
+
+namespace ply2lcc {
+
+class CollisionEncoder {
+public:
+    CollisionEncoder() = default;
+
+    // Encode collision mesh from PLY or OBJ file
+    CollisionData encode(const std::string& mesh_path,
+                         float cell_size_x, float cell_size_y);
+
+    void set_log_callback(LogCallback cb) { log_cb_ = std::move(cb); }
+
+private:
+    void log(const std::string& msg);
+
+    // Read mesh into vertices and faces (auto-detects format)
+    bool read_mesh(const std::string& path,
+                   std::vector<Vec3f>& vertices,
+                   std::vector<Triangle>& faces);
+
+    bool read_ply(const std::string& path,
+                  std::vector<Vec3f>& vertices,
+                  std::vector<Triangle>& faces);
+
+    bool read_obj(const std::string& path,
+                  std::vector<Vec3f>& vertices,
+                  std::vector<Triangle>& faces);
+
+    // Partition mesh by grid cell, remapping vertices per cell
+    void partition_by_cell(const std::vector<Vec3f>& vertices,
+                           const std::vector<Triangle>& faces,
+                           float cell_size_x, float cell_size_y,
+                           std::vector<CollisionCell>& cells,
+                           BBox& bbox);
+
+    // Build BVH for a cell's triangles
+    void build_bvh(CollisionCell& cell);
+
+    LogCallback log_cb_;
+};
+
+} // namespace ply2lcc
+
+#endif // PLY2LCC_COLLISION_ENCODER_HPP

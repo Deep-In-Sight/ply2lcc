@@ -86,6 +86,7 @@ When enabling environment or collision, the default path is set to the input dir
 | `meta.lcc` | JSON metadata (bounds, attributes, settings) |
 | `attrs.lcp` | Attribute metadata |
 | `environment.bin` | Environment splats (if present) |
+| `Collision.lci` | Collision mesh with BVH (if present) |
 
 ## Architecture
 

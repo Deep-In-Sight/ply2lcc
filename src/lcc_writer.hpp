@@ -10,17 +10,16 @@ class LccWriter {
 public:
     explicit LccWriter(const std::string& output_dir);
 
-    // Write complete LCC output (data.bin, shcoef.bin, index.bin, meta.lcc, attrs.lcp)
+    // Write complete LCC output (all files including environment and collision if present)
     void write(const LccData& data);
-
-    // Write environment.bin separately
-    void write_environment(const EncodedEnvironment& env, bool has_sh);
 
 private:
     void write_data_bin(const LccData& data);
     void write_index_bin(const LccData& data);
     void write_meta_lcc(const LccData& data);
     void write_attrs_lcp();
+    void write_environment(const LccData& data);
+    void write_collision(const LccData& data);
 
     static std::string generate_guid();
 

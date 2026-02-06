@@ -2,6 +2,7 @@
 #include "spatial_grid.hpp"
 #include "grid_encoder.hpp"
 #include "lcc_writer.hpp"
+#include "collision_encoder.hpp"
 
 #include <iostream>
 #include <filesystem>
@@ -98,21 +99,29 @@ void ConvertApp::run() {
 
     // Step 3: Encode environment (if exists)
     if (!env_file_.empty() && fs::exists(env_file_)) {
-        log("\nEncoding environment...\n");
+        log("\nPhase 3: Encoding environment...\n");
         data.environment = encoder.encode_environment(env_file_, grid.has_sh());
         log("  Environment: " + std::to_string(data.environment.count) + " splats\n");
     }
 
-    // Step 4: Write output
+    // Step 4: Encode collision mesh (if exists)
+    if (!collision_file_.empty() && fs::exists(collision_file_)) {
+        reportProgress(85, "Encoding collision mesh...");
+        log("\nPhase 4: Encoding collision mesh...\n");
+        CollisionEncoder collision_encoder;
+        collision_encoder.set_log_callback([this](const std::string& msg) { log(msg); });
+        data.collision = collision_encoder.encode(collision_file_, cell_size_x_, cell_size_y_);
+        if (!data.collision.empty()) {
+            log("  Collision: " + std::to_string(data.collision.total_triangles()) + " triangles, " +
+                std::to_string(data.collision.cells.size()) + " cells\n");
+        }
+    }
+
+    // Step 5: Write all output files
     reportProgress(90, "Writing output files...");
-    log("\nPhase 4: Writing LCC data...\n");
+    log("\nPhase 5: Writing LCC data...\n");
     LccWriter writer(output_dir_);
     writer.write(data);
-
-    if (!data.environment.empty()) {
-        log("\nWriting environment.bin...\n");
-        writer.write_environment(data.environment, data.has_sh);
-    }
 
     reportProgress(100, "Conversion complete!");
 
@@ -126,7 +135,7 @@ void ConvertApp::printUsage() {
               << "\n"
               << "Options:\n"
               << "  -e <path>          Path to environment.ply (default: auto-detect in input dir)\n"
-              << "  -m <path>          Path to collision.ply (default: auto-detect in input dir)\n"
+              << "  -m <path>          Path to collision mesh (.ply or .obj, default: auto-detect)\n"
               << "  --single-lod       Use only LOD0 even if more LOD files exist\n"
               << "  --cell-size X,Y    Grid cell size in meters (default: 30,30)\n";
 }
@@ -239,15 +248,22 @@ void ConvertApp::findPlyFiles() {
         }
     }
 
-    // Check for collision.ply
+    // Check for collision mesh (supports .ply and .obj)
     if (include_collision_) {
         if (collision_file_.empty()) {
-            collision_file_ = input_dir_ + "/collision.ply";
+            // Try collision.ply first, then collision.obj
+            std::string ply_path = input_dir_ + "/collision.ply";
+            std::string obj_path = input_dir_ + "/collision.obj";
+            if (fs::exists(ply_path)) {
+                collision_file_ = ply_path;
+            } else if (fs::exists(obj_path)) {
+                collision_file_ = obj_path;
+            }
         }
-        if (fs::exists(collision_file_)) {
+        if (!collision_file_.empty() && fs::exists(collision_file_)) {
             log("Collision: " + collision_file_ + "\n");
         } else {
-            log("Warning: collision.ply not found at " + collision_file_ + "\n");
+            log("Warning: collision mesh not found (tried collision.ply, collision.obj)\n");
             collision_file_.clear();
         }
     }

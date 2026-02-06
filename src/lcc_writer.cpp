@@ -20,15 +20,117 @@ void LccWriter::write(const LccData& data) {
     write_index_bin(data);
     write_meta_lcc(data);
     write_attrs_lcp();
+    write_environment(data);
+    write_collision(data);
 }
 
-void LccWriter::write_environment(const EncodedEnvironment& env, bool /*has_sh*/) {
-    if (env.empty()) return;
+void LccWriter::write_environment(const LccData& data) {
+    if (data.environment.empty()) return;
 
     std::ofstream file(output_dir_ + "/environment.bin", std::ios::binary);
     if (!file) return;
 
-    file.write(reinterpret_cast<const char*>(env.data.data()), env.data.size());
+    file.write(reinterpret_cast<const char*>(data.environment.data.data()),
+               data.environment.data.size());
+}
+
+void LccWriter::write_collision(const LccData& data) {
+    if (data.collision.empty()) return;
+
+    std::ofstream file(output_dir_ + "/collision.lci", std::ios::binary);
+    if (!file) {
+        throw std::runtime_error("Failed to create collision.lci");
+    }
+
+    constexpr uint32_t MAGIC = 0x6c6c6f63;  // "coll"
+    constexpr uint32_t VERSION = 2;
+
+    const auto& collision = data.collision;
+    uint32_t mesh_num = static_cast<uint32_t>(collision.cells.size());
+    uint32_t header_len = 48 + 40 * mesh_num;
+
+    // Write main header
+    file.write(reinterpret_cast<const char*>(&MAGIC), 4);
+    file.write(reinterpret_cast<const char*>(&VERSION), 4);
+    file.write(reinterpret_cast<const char*>(&header_len), 4);
+
+    // Bounding box
+    file.write(reinterpret_cast<const char*>(&collision.bbox.min.x), 4);
+    file.write(reinterpret_cast<const char*>(&collision.bbox.min.y), 4);
+    file.write(reinterpret_cast<const char*>(&collision.bbox.min.z), 4);
+    file.write(reinterpret_cast<const char*>(&collision.bbox.max.x), 4);
+    file.write(reinterpret_cast<const char*>(&collision.bbox.max.y), 4);
+    file.write(reinterpret_cast<const char*>(&collision.bbox.max.z), 4);
+
+    // Cell sizes
+    file.write(reinterpret_cast<const char*>(&collision.cell_size_x), 4);
+    file.write(reinterpret_cast<const char*>(&collision.cell_size_y), 4);
+
+    // Mesh count
+    file.write(reinterpret_cast<const char*>(&mesh_num), 4);
+
+    // Calculate data offsets
+    uint64_t current_offset = header_len;
+    std::vector<uint64_t> offsets(mesh_num);
+    std::vector<uint64_t> sizes(mesh_num);
+
+    for (size_t i = 0; i < collision.cells.size(); ++i) {
+        const auto& cell = collision.cells[i];
+        offsets[i] = current_offset;
+
+        uint64_t vertex_size = cell.vertices.size() * 3 * sizeof(float);
+        uint64_t face_size = cell.faces.size() * 3 * sizeof(uint32_t);
+        uint64_t bvh_size = cell.bvh_data.size();
+        sizes[i] = vertex_size + face_size + bvh_size;
+
+        current_offset += sizes[i];
+    }
+
+    // Write mesh headers
+    for (size_t i = 0; i < collision.cells.size(); ++i) {
+        const auto& cell = collision.cells[i];
+
+        uint32_t index_x = cell.index & 0xFFFF;
+        uint32_t index_y = (cell.index >> 16) & 0xFFFF;
+        uint64_t offset = offsets[i];
+        uint64_t bytes_size = sizes[i];
+        uint32_t vertex_num = static_cast<uint32_t>(cell.vertices.size());
+        uint32_t face_num = static_cast<uint32_t>(cell.faces.size());
+        uint32_t bvh_size = static_cast<uint32_t>(cell.bvh_data.size());
+        uint32_t reserved = 0;
+
+        file.write(reinterpret_cast<const char*>(&index_x), 4);
+        file.write(reinterpret_cast<const char*>(&index_y), 4);
+        file.write(reinterpret_cast<const char*>(&offset), 8);
+        file.write(reinterpret_cast<const char*>(&bytes_size), 8);
+        file.write(reinterpret_cast<const char*>(&vertex_num), 4);
+        file.write(reinterpret_cast<const char*>(&face_num), 4);
+        file.write(reinterpret_cast<const char*>(&bvh_size), 4);
+        file.write(reinterpret_cast<const char*>(&reserved), 4);
+    }
+
+    // Write mesh data
+    for (const auto& cell : collision.cells) {
+        // Vertices (float32 x 3 per vertex)
+        for (const auto& v : cell.vertices) {
+            file.write(reinterpret_cast<const char*>(&v.x), 4);
+            file.write(reinterpret_cast<const char*>(&v.y), 4);
+            file.write(reinterpret_cast<const char*>(&v.z), 4);
+        }
+
+        // Faces (uint32 x 3 per face)
+        for (const auto& f : cell.faces) {
+            file.write(reinterpret_cast<const char*>(&f.v0), 4);
+            file.write(reinterpret_cast<const char*>(&f.v1), 4);
+            file.write(reinterpret_cast<const char*>(&f.v2), 4);
+        }
+
+        // BVH data
+        if (!cell.bvh_data.empty()) {
+            file.write(reinterpret_cast<const char*>(cell.bvh_data.data()),
+                       cell.bvh_data.size());
+        }
+    }
 }
 
 void LccWriter::write_data_bin(const LccData& data) {
