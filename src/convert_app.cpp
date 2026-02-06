@@ -134,8 +134,8 @@ void ConvertApp::printUsage() {
     std::cerr << "Usage: " << argv_[0] << " -i <input.ply> -o <output_dir> [options]\n"
               << "\n"
               << "Options:\n"
-              << "  -e <path>          Path to environment.ply (default: auto-detect in input dir)\n"
-              << "  -m <path>          Path to collision mesh (.ply or .obj, default: auto-detect)\n"
+              << "  -e <path>          Include environment splats from specified .ply file\n"
+              << "  -m <path>          Include collision mesh from specified .ply or .obj file\n"
               << "  --single-lod       Use only LOD0 even if more LOD files exist\n"
               << "  --cell-size X,Y    Grid cell size in meters (default: 30,30)\n";
 }
@@ -235,51 +235,27 @@ void ConvertApp::findPlyFiles() {
         lod_files_.resize(1);
     }
 
-    // Check for environment.ply
+    // Validate environment file (no auto-detect)
     if (include_env_) {
-        // If path provided but doesn't exist, clear it to trigger auto-detect
-        if (!env_file_.empty() && !fs::exists(env_file_)) {
-            log("Warning: specified environment file not found: " + env_file_ + "\n");
-            env_file_.clear();
-        }
-
-        // Auto-detect if no valid path
-        if (env_file_.empty()) {
-            env_file_ = input_dir_ + "/environment.ply";
-        }
-
-        if (fs::exists(env_file_)) {
+        if (!env_file_.empty() && fs::exists(env_file_)) {
             log("Environment: " + env_file_ + "\n");
         } else {
-            log("Warning: environment.ply not found\n");
+            if (!env_file_.empty()) {
+                log("Warning: environment file not found: " + env_file_ + "\n");
+            }
             env_file_.clear();
         }
     }
 
-    // Check for collision mesh (supports .ply and .obj)
+    // Validate collision file (no auto-detect)
     if (include_collision_) {
-        // If path provided but doesn't exist, clear it to trigger auto-detect
-        if (!collision_file_.empty() && !fs::exists(collision_file_)) {
-            log("Warning: specified collision file not found: " + collision_file_ + "\n");
-            collision_file_.clear();
-        }
-
-        // Auto-detect if no valid path
-        if (collision_file_.empty()) {
-            // Try collision.ply first, then collision.obj
-            std::string ply_path = input_dir_ + "/collision.ply";
-            std::string obj_path = input_dir_ + "/collision.obj";
-            if (fs::exists(ply_path)) {
-                collision_file_ = ply_path;
-            } else if (fs::exists(obj_path)) {
-                collision_file_ = obj_path;
-            }
-        }
-
-        if (!collision_file_.empty()) {
+        if (!collision_file_.empty() && fs::exists(collision_file_)) {
             log("Collision: " + collision_file_ + "\n");
         } else {
-            log("Warning: collision mesh not found (tried collision.ply, collision.obj)\n");
+            if (!collision_file_.empty()) {
+                log("Warning: collision file not found: " + collision_file_ + "\n");
+            }
+            collision_file_.clear();
         }
     }
 }

@@ -182,15 +182,15 @@ struct ThreadLocalGrid {
 };
 
 struct ConvertConfig {
-    std::string input_path;      // PLY file or directory (renamed from input_dir)
+    std::string input_path;      // PLY file or directory
     std::string output_dir;
     float cell_size_x = 30.0f;
     float cell_size_y = 30.0f;
     bool single_lod = false;
-    bool include_env = true;     // Process environment PLY if found
-    std::string env_path;        // Explicit path to environment.ply (empty = auto-detect)
-    bool include_collision = false;  // Process collision PLY if found
-    std::string collision_path;  // Explicit path to collision.ply (empty = auto-detect)
+    bool include_env = true;     // Include environment splats (GUI default: checked)
+    std::string env_path;        // Path to environment.ply
+    bool include_collision = false;  // Include collision mesh (GUI default: unchecked)
+    std::string collision_path;  // Path to collision.ply or collision.obj
 };
 
 // Utility functions

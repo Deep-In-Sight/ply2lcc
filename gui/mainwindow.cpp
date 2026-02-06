@@ -196,16 +196,25 @@ void MainWindow::startConversion() {
     QString timestamp = QTime::currentTime().toString("hh:mm:ss");
     m_logEdit->append(QString("[%1] Starting conversion...").arg(timestamp));
 
+    // Only include env/collision if checkbox is checked AND file exists
+    bool includeEnv = m_includeEnvCheck->isChecked() &&
+                      QFileInfo::exists(m_envPathEdit->text());
+    bool includeCollision = m_includeCollisionCheck->isChecked() &&
+                            QFileInfo::exists(m_collisionPathEdit->text());
+
+    QString envPath = includeEnv ? m_envPathEdit->text() : QString();
+    QString collisionPath = includeCollision ? m_collisionPathEdit->text() : QString();
+
     emit conversionRequested(
         m_inputPathEdit->text(),
         m_outputDirEdit->text(),
         m_cellSizeXSpin->value(),
         m_cellSizeYSpin->value(),
         m_singleLodCheck->isChecked(),
-        m_includeEnvCheck->isChecked(),
-        m_envPathEdit->text(),
-        m_includeCollisionCheck->isChecked(),
-        m_collisionPathEdit->text());
+        includeEnv,
+        envPath,
+        includeCollision,
+        collisionPath);
 }
 
 void MainWindow::updateConvertButtonState() {
