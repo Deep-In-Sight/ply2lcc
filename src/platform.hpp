@@ -2,7 +2,6 @@
 #define PLY2LCC_PLATFORM_HPP
 
 #include <filesystem>
-#include <fstream>
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
@@ -126,26 +125,6 @@ inline void madvise(void* addr, std::size_t length, AccessHint hint) {
         case AccessHint::DontNeed:   advice = MADV_DONTNEED; break;
     }
     ::madvise(addr, length, advice);
-#endif
-}
-
-/// Open output file stream with Unicode path support
-inline std::ofstream ofstream_open(const fs::path& path,
-                                   std::ios::openmode mode = std::ios::binary) {
-#ifdef _WIN32
-    return std::ofstream(path.wstring(), mode);
-#else
-    return std::ofstream(path, mode);
-#endif
-}
-
-/// Open input file stream with Unicode path support
-inline std::ifstream ifstream_open(const fs::path& path,
-                                   std::ios::openmode mode = std::ios::binary) {
-#ifdef _WIN32
-    return std::ifstream(path.wstring(), mode);
-#else
-    return std::ifstream(path, mode);
 #endif
 }
 
