@@ -2,6 +2,7 @@
 #define PLY2LCC_COLLISION_ENCODER_HPP
 
 #include "lcc_types.hpp"
+#include <filesystem>
 #include <string>
 
 namespace ply2lcc {
@@ -11,7 +12,7 @@ public:
     CollisionEncoder() = default;
 
     // Encode collision mesh from PLY or OBJ file
-    CollisionData encode(const std::string& mesh_path,
+    CollisionData encode(const std::filesystem::path& mesh_path,
                          float cell_size_x, float cell_size_y);
 
     void set_log_callback(LogCallback cb) { log_cb_ = std::move(cb); }
@@ -20,15 +21,15 @@ private:
     void log(const std::string& msg);
 
     // Read mesh into vertices and faces (auto-detects format)
-    bool read_mesh(const std::string& path,
+    bool read_mesh(const std::filesystem::path& path,
                    std::vector<Vec3f>& vertices,
                    std::vector<Triangle>& faces);
 
-    bool read_ply(const std::string& path,
+    bool read_ply(const std::filesystem::path& path,
                   std::vector<Vec3f>& vertices,
                   std::vector<Triangle>& faces);
 
-    bool read_obj(const std::string& path,
+    bool read_obj(const std::filesystem::path& path,
                   std::vector<Vec3f>& vertices,
                   std::vector<Triangle>& faces);
 

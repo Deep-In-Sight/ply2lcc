@@ -1,4 +1,5 @@
 #include "collision_encoder.hpp"
+#include "platform.hpp"
 #include "miniply/miniply.h"
 #include <algorithm>
 #include <map>
@@ -18,18 +19,13 @@ void CollisionEncoder::log(const std::string& msg) {
     }
 }
 
-bool CollisionEncoder::read_mesh(const std::string& path,
+bool CollisionEncoder::read_mesh(const std::filesystem::path& path,
                                   std::vector<Vec3f>& vertices,
                                   std::vector<Triangle>& faces) {
     // Detect format by extension
-    std::string ext;
-    size_t dot_pos = path.rfind('.');
-    if (dot_pos != std::string::npos) {
-        ext = path.substr(dot_pos);
-        // Convert to lowercase
-        for (char& c : ext) {
-            c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-        }
+    std::string ext = path.extension().string();
+    for (char& c : ext) {
+        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
     }
 
     if (ext == ".obj") {
@@ -42,12 +38,12 @@ bool CollisionEncoder::read_mesh(const std::string& path,
     }
 }
 
-bool CollisionEncoder::read_obj(const std::string& path,
+bool CollisionEncoder::read_obj(const std::filesystem::path& path,
                                  std::vector<Vec3f>& vertices,
                                  std::vector<Triangle>& faces) {
-    std::ifstream file(path);
+    auto file = platform::ifstream_open(path, std::ios::in);
     if (!file) {
-        log("Failed to open OBJ file: " + path + "\n");
+        log("Failed to open OBJ file: " + path.string() + "\n");
         return false;
     }
 
@@ -104,12 +100,12 @@ bool CollisionEncoder::read_obj(const std::string& path,
     return !vertices.empty() && !faces.empty();
 }
 
-bool CollisionEncoder::read_ply(const std::string& path,
+bool CollisionEncoder::read_ply(const std::filesystem::path& path,
                                  std::vector<Vec3f>& vertices,
                                  std::vector<Triangle>& faces) {
-    miniply::PLYReader reader(path.c_str());
+    miniply::PLYReader reader(path.string().c_str());
     if (!reader.valid()) {
-        log("Failed to open PLY file: " + path + "\n");
+        log("Failed to open PLY file: " + path.string() + "\n");
         return false;
     }
 
@@ -414,13 +410,13 @@ void CollisionEncoder::build_bvh(CollisionCell& cell) {
     std::memcpy(cell.bvh_data.data() + 16, nodes.data(), nodes.size() * sizeof(BVHNode));
 }
 
-CollisionData CollisionEncoder::encode(const std::string& mesh_path,
+CollisionData CollisionEncoder::encode(const std::filesystem::path& mesh_path,
                                         float cell_size_x, float cell_size_y) {
     CollisionData data;
     data.cell_size_x = cell_size_x;
     data.cell_size_y = cell_size_y;
 
-    log("Reading collision mesh: " + mesh_path + "\n");
+    log("Reading collision mesh: " + mesh_path.string() + "\n");
 
     std::vector<Vec3f> vertices;
     std::vector<Triangle> faces;
