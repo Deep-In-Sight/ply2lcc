@@ -28,6 +28,7 @@ SOFTWARE.
 #include <cstdarg>
 #include <cstdint>
 #include <cstdio>
+#include <filesystem>
 #include <string>
 #include <vector>
 
@@ -146,7 +147,7 @@ namespace miniply {
 
   class PLYReader {
   public:
-    PLYReader(const char* filename);
+    explicit PLYReader(const std::filesystem::path& filename);
     ~PLYReader();
 
     bool valid() const;

@@ -6,7 +6,7 @@
 namespace ply2lcc {
 
 PLYReaderMmap::PLYReaderMmap(const std::filesystem::path& filename)
-    : miniply::PLYReader(filename.string().c_str())
+    : miniply::PLYReader(filename)
     , m_filename(filename)
 {
 }

@@ -23,6 +23,7 @@ SOFTWARE.
 */
 
 #include "miniply.h"
+#include "../../src/platform.hpp"
 
 #include <cassert>
 #include <cctype>
@@ -171,17 +172,6 @@ namespace miniply {
   static inline bool is_safe_buffer_end(char ch)
   {
     return (ch > 0 && ch <= 32) || (ch >= 127);
-  }
-
-
-  static int file_open(FILE** f, const char* filename, const char* mode)
-  {
-  #ifdef _WIN32
-    return fopen_s(f, filename, mode);
-  #else
-    *f = fopen(filename, mode);
-    return (*f != nullptr) ? 0 : errno;
-  #endif
   }
 
 
@@ -581,7 +571,7 @@ namespace miniply {
   // PLYReader methods
   //
 
-  PLYReader::PLYReader(const char* filename)
+  PLYReader::PLYReader(const std::filesystem::path& filename)
   {
     m_buf = new char[kPLYReadBufferSize + 1];
     m_buf[kPLYReadBufferSize] = '\0';
@@ -593,8 +583,8 @@ namespace miniply {
     m_pos = m_bufEnd;
     m_end = m_bufEnd;
 
-    if (file_open(&m_f, filename, "rb") != 0) {
-      m_f = nullptr;
+    m_f = platform::fopen(filename, "rb");
+    if (!m_f) {
       m_valid = false;
       return;
     }

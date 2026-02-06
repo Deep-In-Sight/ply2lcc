@@ -103,7 +103,7 @@ bool CollisionEncoder::read_obj(const std::filesystem::path& path,
 bool CollisionEncoder::read_ply(const std::filesystem::path& path,
                                  std::vector<Vec3f>& vertices,
                                  std::vector<Triangle>& faces) {
-    miniply::PLYReader reader(path.string().c_str());
+    miniply::PLYReader reader(path);
     if (!reader.valid()) {
         log("Failed to open PLY file: " + path.string() + "\n");
         return false;
