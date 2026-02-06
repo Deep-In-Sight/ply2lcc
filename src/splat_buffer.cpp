@@ -16,7 +16,7 @@ static int compute_sh_degree(int num_f_rest) {
 
 bool SplatBuffer::initialize(const std::string& path) {
     // Use PLYReaderMmap for PLY parsing and memory mapping
-    m_reader = std::make_unique<PLYReaderMmap>(path.c_str());
+    m_reader = std::make_unique<PLYReaderMmap>(path);
 
     if (!m_reader->valid()) {
         m_error = "Failed to open PLY file: " + path;

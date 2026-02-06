@@ -2,17 +2,9 @@
 #define PLY2LCC_PLY_READER_MMAP_HPP
 
 #include "miniply/miniply.h"
+#include "platform.hpp"
 #include <cstdint>
-#include <string>
-
-#ifdef _WIN32
-#include <windows.h>
-#else
-#include <sys/mman.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <unistd.h>
-#endif
+#include <filesystem>
 
 namespace ply2lcc {
 
@@ -20,7 +12,7 @@ namespace ply2lcc {
 /// Only supports binary little-endian PLY files with fixed-size elements.
 class PLYReaderMmap : public miniply::PLYReader {
 public:
-    explicit PLYReaderMmap(const char* filename);
+    explicit PLYReaderMmap(const std::filesystem::path& filename);
     ~PLYReaderMmap();
 
     // Disable copy
@@ -43,17 +35,11 @@ public:
     bool is_mapped() const { return m_mappedData != nullptr; }
 
 private:
-    std::string m_filename;
+    std::filesystem::path m_filename;
+    platform::FileHandle m_handle;
     uint8_t* m_mappedBase = nullptr;  // Base address of mmap (for unmapping)
     uint8_t* m_mappedData = nullptr;  // Pointer to element data within mapping
-    size_t m_mappedSize = 0;          // Total mapped size
-
-#ifdef _WIN32
-    HANDLE m_fileHandle = INVALID_HANDLE_VALUE;
-    HANDLE m_mapHandle = nullptr;
-#else
-    int m_fd = -1;
-#endif
+    std::size_t m_mappedSize = 0;     // Total mapped size
 };
 
 } // namespace ply2lcc

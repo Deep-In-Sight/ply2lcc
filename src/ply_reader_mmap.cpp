@@ -1,11 +1,12 @@
 #include "ply_reader_mmap.hpp"
 #include <cstring>
 #include <iostream>
+#include <algorithm>
 
 namespace ply2lcc {
 
-PLYReaderMmap::PLYReaderMmap(const char* filename)
-    : miniply::PLYReader(filename)
+PLYReaderMmap::PLYReaderMmap(const std::filesystem::path& filename)
+    : miniply::PLYReader(filename.string().c_str())
     , m_filename(filename)
 {
 }
@@ -37,85 +38,34 @@ const uint8_t* PLYReaderMmap::map_element(uint32_t* rowStride, uint32_t* numRows
         return nullptr;
     }
 
-#ifdef _WIN32
-    // Use FILE_FLAG_SEQUENTIAL_SCAN for better read-ahead performance
-    m_fileHandle = CreateFileA(m_filename.c_str(), GENERIC_READ, FILE_SHARE_READ,
-                               nullptr, OPEN_EXISTING,
-                               FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN, nullptr);
-    if (m_fileHandle == INVALID_HANDLE_VALUE) {
+    // Open file for mapping
+    m_handle = platform::file_open(m_filename);
+    if (!m_handle.valid()) {
         std::cerr << "PLYReaderMmap: Failed to open file for mapping\n";
         return nullptr;
     }
 
-    LARGE_INTEGER fileSize;
-    if (!GetFileSizeEx(m_fileHandle, &fileSize)) {
-        CloseHandle(m_fileHandle);
-        m_fileHandle = INVALID_HANDLE_VALUE;
-        return nullptr;
-    }
+    m_mappedSize = m_handle.file_size;
 
-    m_mapHandle = CreateFileMappingA(m_fileHandle, nullptr, PAGE_READONLY, 0, 0, nullptr);
-    if (m_mapHandle == nullptr) {
-        CloseHandle(m_fileHandle);
-        m_fileHandle = INVALID_HANDLE_VALUE;
-        return nullptr;
-    }
-
-    m_mappedBase = static_cast<uint8_t*>(
-        MapViewOfFile(m_mapHandle, FILE_MAP_READ, 0, 0, 0));
+    // Map entire file
+    m_mappedBase = static_cast<uint8_t*>(platform::mmap_read(m_handle, 0, m_mappedSize));
     if (m_mappedBase == nullptr) {
-        CloseHandle(m_mapHandle);
-        CloseHandle(m_fileHandle);
-        m_mapHandle = nullptr;
-        m_fileHandle = INVALID_HANDLE_VALUE;
-        return nullptr;
-    }
-
-    m_mappedSize = static_cast<size_t>(fileSize.QuadPart);
-
-    // Hint to Windows to prefetch the mapped memory for sequential access
-    WIN32_MEMORY_RANGE_ENTRY range;
-    range.VirtualAddress = m_mappedBase;
-    range.NumberOfBytes = m_mappedSize;
-    PrefetchVirtualMemory(GetCurrentProcess(), 1, &range, 0);
-#else
-    m_fd = open(m_filename.c_str(), O_RDONLY);
-    if (m_fd < 0) {
-        std::cerr << "PLYReaderMmap: Failed to open file for mapping\n";
-        return nullptr;
-    }
-
-    struct stat st;
-    if (fstat(m_fd, &st) < 0) {
-        close(m_fd);
-        m_fd = -1;
-        return nullptr;
-    }
-
-    m_mappedSize = static_cast<size_t>(st.st_size);
-
-    m_mappedBase = static_cast<uint8_t*>(
-        mmap(nullptr, m_mappedSize, PROT_READ, MAP_PRIVATE, m_fd, 0));
-    if (m_mappedBase == MAP_FAILED) {
-        close(m_fd);
-        m_fd = -1;
-        m_mappedBase = nullptr;
+        platform::file_close(m_handle);
         m_mappedSize = 0;
         return nullptr;
     }
 
-    // Hint to kernel for sequential access pattern
-    madvise(m_mappedBase, m_mappedSize, MADV_SEQUENTIAL);
-#endif
+    // Hint for sequential access
+    platform::madvise(m_mappedBase, m_mappedSize, platform::AccessHint::Sequential);
 
     // Find "end_header\n" in the file
     const char* marker = "end_header\n";
-    const size_t markerLen = 11;
-    size_t headerEnd = 0;
+    const std::size_t markerLen = 11;
+    std::size_t headerEnd = 0;
 
     // Search in first 64KB (headers should be much smaller)
-    size_t searchLimit = std::min(m_mappedSize, size_t(65536));
-    for (size_t i = 0; i + markerLen <= searchLimit; ++i) {
+    std::size_t searchLimit = std::min(m_mappedSize, std::size_t(65536));
+    for (std::size_t i = 0; i + markerLen <= searchLimit; ++i) {
         if (memcmp(m_mappedBase + i, marker, markerLen) == 0) {
             headerEnd = i + markerLen;
             break;
@@ -129,7 +79,7 @@ const uint8_t* PLYReaderMmap::map_element(uint32_t* rowStride, uint32_t* numRows
     }
 
     // Compute offset to current element by summing previous elements' sizes
-    size_t dataOffset = headerEnd;
+    std::size_t dataOffset = headerEnd;
 
     // Find which element we're on and sum sizes of previous elements
     uint32_t numElems = num_elements();
@@ -140,7 +90,7 @@ const uint8_t* PLYReaderMmap::map_element(uint32_t* rowStride, uint32_t* numRows
         }
         // Add this element's size to offset
         if (e->fixedSize) {
-            dataOffset += static_cast<size_t>(e->rowStride) * e->count;
+            dataOffset += static_cast<std::size_t>(e->rowStride) * e->count;
         } else {
             // Variable size element before us - can't compute offset
             std::cerr << "PLYReaderMmap: Variable-size element before current element\n";
@@ -150,7 +100,7 @@ const uint8_t* PLYReaderMmap::map_element(uint32_t* rowStride, uint32_t* numRows
     }
 
     // Verify we have enough data
-    size_t elementSize = static_cast<size_t>(elem->rowStride) * elem->count;
+    std::size_t elementSize = static_cast<std::size_t>(elem->rowStride) * elem->count;
     if (dataOffset + elementSize > m_mappedSize) {
         std::cerr << "PLYReaderMmap: Element data extends beyond file\n";
         unmap_element();
@@ -167,29 +117,12 @@ const uint8_t* PLYReaderMmap::map_element(uint32_t* rowStride, uint32_t* numRows
 
 void PLYReaderMmap::unmap_element()
 {
-#ifdef _WIN32
-    if (m_mappedBase != nullptr) {
-        UnmapViewOfFile(m_mappedBase);
-        m_mappedBase = nullptr;
-    }
-    if (m_mapHandle != nullptr) {
-        CloseHandle(m_mapHandle);
-        m_mapHandle = nullptr;
-    }
-    if (m_fileHandle != INVALID_HANDLE_VALUE) {
-        CloseHandle(m_fileHandle);
-        m_fileHandle = INVALID_HANDLE_VALUE;
-    }
-#else
     if (m_mappedBase != nullptr && m_mappedSize > 0) {
-        munmap(m_mappedBase, m_mappedSize);
+        platform::munmap(m_mappedBase, m_mappedSize);
         m_mappedBase = nullptr;
     }
-    if (m_fd >= 0) {
-        close(m_fd);
-        m_fd = -1;
-    }
-#endif
+
+    platform::file_close(m_handle);
 
     m_mappedData = nullptr;
     m_mappedSize = 0;
