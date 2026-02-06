@@ -106,6 +106,29 @@ inline void munmap(void* addr, std::size_t length) {
 #endif
 }
 
+/// Advise kernel about memory access pattern
+inline void madvise(void* addr, std::size_t length, AccessHint hint) {
+    if (!addr || length == 0) return;
+#ifdef _WIN32
+    if (hint == AccessHint::Sequential || hint == AccessHint::WillNeed) {
+        WIN32_MEMORY_RANGE_ENTRY range;
+        range.VirtualAddress = addr;
+        range.NumberOfBytes = length;
+        PrefetchVirtualMemory(GetCurrentProcess(), 1, &range, 0);
+    }
+    // Random and DontNeed have no direct Windows equivalent
+#else
+    int advice = MADV_NORMAL;
+    switch (hint) {
+        case AccessHint::Sequential: advice = MADV_SEQUENTIAL; break;
+        case AccessHint::Random:     advice = MADV_RANDOM; break;
+        case AccessHint::WillNeed:   advice = MADV_WILLNEED; break;
+        case AccessHint::DontNeed:   advice = MADV_DONTNEED; break;
+    }
+    ::madvise(addr, length, advice);
+#endif
+}
+
 } // namespace platform
 
 #endif // PLY2LCC_PLATFORM_HPP
