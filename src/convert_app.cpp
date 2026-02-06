@@ -248,7 +248,8 @@ void ConvertApp::validateOutput() {
 }
 
 void ConvertApp::buildSpatialGridParallel() {
-    log("\nPhase 1: Building spatial grid (parallel)...\n");
+    int n_threads = omp_get_max_threads();
+    log("\nPhase 1: Building spatial grid (parallel, " + std::to_string(n_threads) + " threads)...\n");
 
     // First pass: compute global bbox (needed for grid cell calculation)
     for (size_t lod = 0; lod < lod_files_.size(); ++lod) {
@@ -290,13 +291,14 @@ void ConvertApp::buildSpatialGridParallel() {
         #pragma omp parallel
         {
             int tid = omp_get_thread_num();
+            const auto splat_count = static_cast<ptrdiff_t>(splats.size());
 
             #pragma omp for schedule(static)
-            for (size_t i = 0; i < splats.size(); ++i) {
-                SplatView sv = splats[i];
+            for (ptrdiff_t i = 0; i < splat_count; ++i) {
+                SplatView sv = splats[static_cast<size_t>(i)];
                 uint32_t cell_id = grid_->compute_cell_index(sv.pos());
 
-                local_grids[tid].cell_indices[cell_id].push_back(i);
+                local_grids[tid].cell_indices[cell_id].push_back(static_cast<size_t>(i));
 
                 // Expand ranges
                 Vec3f linear_scale(std::exp(sv.scale().x), std::exp(sv.scale().y), std::exp(sv.scale().z));
@@ -361,12 +363,13 @@ void ConvertApp::encodeAllLods() {
         }
 
         // Calculate reporting frequency (every 1% progress or at least every cell if < 100 cells)
-        size_t report_interval = std::max(size_t(1), total_cells / 100);
+        size_t report_interval = (std::max)(size_t(1), total_cells / 100);
+        const auto cells_count = static_cast<ptrdiff_t>(cells_vec.size());
 
         #pragma omp parallel for schedule(dynamic)
-        for (size_t i = 0; i < cells_vec.size(); ++i) {
-            uint32_t cell_idx = cells_vec[i].first;
-            const GridCell* cell = cells_vec[i].second;
+        for (ptrdiff_t i = 0; i < cells_count; ++i) {
+            uint32_t cell_idx = cells_vec[static_cast<size_t>(i)].first;
+            const GridCell* cell = cells_vec[static_cast<size_t>(i)].second;
 
             // Skip empty cells - no critical section needed
             if (cell->splat_indices[lod].empty()) {

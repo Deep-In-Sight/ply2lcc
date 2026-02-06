@@ -30,6 +30,11 @@ target_compile_options(ply2lcc PRIVATE
     $<$<CXX_COMPILER_ID:MSVC>:/W3 /O2>
 )
 
+# Windows-specific: prevent min/max macros from conflicting with std::min/std::max
+if(MSVC)
+    target_compile_definitions(ply2lcc PRIVATE NOMINMAX _CRT_SECURE_NO_WARNINGS)
+endif()
+
 target_link_libraries(ply2lcc PRIVATE OpenMP::OpenMP_CXX)
 
 # Options
@@ -54,6 +59,9 @@ if(BUILD_TESTS OR BUILD_GUI)
         ${CMAKE_SOURCE_DIR}/external
     )
     target_link_libraries(ply2lcc_lib PUBLIC OpenMP::OpenMP_CXX)
+    if(MSVC)
+        target_compile_definitions(ply2lcc_lib PRIVATE NOMINMAX _CRT_SECURE_NO_WARNINGS)
+    endif()
 endif()
 
 # Testing

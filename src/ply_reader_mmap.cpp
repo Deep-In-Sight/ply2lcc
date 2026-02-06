@@ -38,8 +38,10 @@ const uint8_t* PLYReaderMmap::map_element(uint32_t* rowStride, uint32_t* numRows
     }
 
 #ifdef _WIN32
+    // Use FILE_FLAG_SEQUENTIAL_SCAN for better read-ahead performance
     m_fileHandle = CreateFileA(m_filename.c_str(), GENERIC_READ, FILE_SHARE_READ,
-                               nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+                               nullptr, OPEN_EXISTING,
+                               FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN, nullptr);
     if (m_fileHandle == INVALID_HANDLE_VALUE) {
         std::cerr << "PLYReaderMmap: Failed to open file for mapping\n";
         return nullptr;
@@ -70,6 +72,12 @@ const uint8_t* PLYReaderMmap::map_element(uint32_t* rowStride, uint32_t* numRows
     }
 
     m_mappedSize = static_cast<size_t>(fileSize.QuadPart);
+
+    // Hint to Windows to prefetch the mapped memory for sequential access
+    WIN32_MEMORY_RANGE_ENTRY range;
+    range.VirtualAddress = m_mappedBase;
+    range.NumberOfBytes = m_mappedSize;
+    PrefetchVirtualMemory(GetCurrentProcess(), 1, &range, 0);
 #else
     m_fd = open(m_filename.c_str(), O_RDONLY);
     if (m_fd < 0) {
@@ -95,6 +103,9 @@ const uint8_t* PLYReaderMmap::map_element(uint32_t* rowStride, uint32_t* numRows
         m_mappedSize = 0;
         return nullptr;
     }
+
+    // Hint to kernel for sequential access pattern
+    madvise(m_mappedBase, m_mappedSize, MADV_SEQUENTIAL);
 #endif
 
     // Find "end_header\n" in the file
