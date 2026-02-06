@@ -89,7 +89,7 @@ void MainWindow::setupUi() {
     // Collision row
     auto* collisionLayout = new QHBoxLayout();
     m_includeCollisionCheck = new QCheckBox("Include collision:");
-    m_includeCollisionCheck->setChecked(false);
+    m_includeCollisionCheck->setChecked(true);
     collisionLayout->addWidget(m_includeCollisionCheck);
     m_collisionPathEdit = new QLineEdit();
     m_collisionPathEdit->setPlaceholderText("Path to collision.ply...");
