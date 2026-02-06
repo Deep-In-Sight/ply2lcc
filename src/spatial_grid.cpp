@@ -14,7 +14,7 @@ SpatialGrid::SpatialGrid(float cell_size_x, float cell_size_y, size_t num_lods)
 {
 }
 
-SpatialGrid SpatialGrid::from_files(const std::vector<std::string>& lod_files,
+SpatialGrid SpatialGrid::from_files(const std::vector<std::filesystem::path>& lod_files,
                                      float cell_size_x, float cell_size_y) {
     SpatialGrid grid(cell_size_x, cell_size_y, lod_files.size());
 
@@ -22,7 +22,7 @@ SpatialGrid SpatialGrid::from_files(const std::vector<std::string>& lod_files,
     for (size_t lod = 0; lod < lod_files.size(); ++lod) {
         SplatBuffer buffer;
         if (!buffer.initialize(lod_files[lod])) {
-            throw std::runtime_error("Failed to read " + lod_files[lod] + ": " + buffer.error());
+            throw std::runtime_error("Failed to read " + lod_files[lod].u8string() + ": " + buffer.error());
         }
         grid.bbox_.expand(buffer.compute_bbox());
 
@@ -40,7 +40,7 @@ SpatialGrid SpatialGrid::from_files(const std::vector<std::string>& lod_files,
     for (size_t lod = 0; lod < lod_files.size(); ++lod) {
         SplatBuffer splats;
         if (!splats.initialize(lod_files[lod])) {
-            throw std::runtime_error("Failed to read " + lod_files[lod] + ": " + splats.error());
+            throw std::runtime_error("Failed to read " + lod_files[lod].u8string() + ": " + splats.error());
         }
 
         std::vector<ThreadLocalGrid> local_grids(n_threads);

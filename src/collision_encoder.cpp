@@ -43,7 +43,7 @@ bool CollisionEncoder::read_obj(const std::filesystem::path& path,
                                  std::vector<Triangle>& faces) {
     auto file = platform::ifstream_open(path, std::ios::in);
     if (!file) {
-        log("Failed to open OBJ file: " + path.string() + "\n");
+        log("Failed to open OBJ file: " + path.u8string() + "\n");
         return false;
     }
 
@@ -105,7 +105,7 @@ bool CollisionEncoder::read_ply(const std::filesystem::path& path,
                                  std::vector<Triangle>& faces) {
     miniply::PLYReader reader(path);
     if (!reader.valid()) {
-        log("Failed to open PLY file: " + path.string() + "\n");
+        log("Failed to open PLY file: " + path.u8string() + "\n");
         return false;
     }
 
@@ -416,7 +416,7 @@ CollisionData CollisionEncoder::encode(const std::filesystem::path& mesh_path,
     data.cell_size_x = cell_size_x;
     data.cell_size_y = cell_size_y;
 
-    log("Reading collision mesh: " + mesh_path.string() + "\n");
+    log("Reading collision mesh: " + mesh_path.u8string() + "\n");
 
     std::vector<Vec3f> vertices;
     std::vector<Triangle> faces;

@@ -5,13 +5,14 @@
 #include <vector>
 #include <map>
 #include <string>
+#include <filesystem>
 
 namespace ply2lcc {
 
 class SpatialGrid {
 public:
     // Factory: builds grid from PLY files, computes bbox and ranges
-    static SpatialGrid from_files(const std::vector<std::string>& lod_files,
+    static SpatialGrid from_files(const std::vector<std::filesystem::path>& lod_files,
                                    float cell_size_x, float cell_size_y);
 
     // Accessors

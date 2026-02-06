@@ -33,4 +33,5 @@ target_link_libraries(ply2lcc-gui PRIVATE
 
 target_include_directories(ply2lcc-gui PRIVATE
     ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_BINARY_DIR}
 )

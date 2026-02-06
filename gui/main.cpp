@@ -2,6 +2,7 @@
 #include "mainwindow.hpp"
 #include "convertworker.hpp"
 #include "types.hpp"
+#include <filesystem>
 
 int main(int argc, char* argv[]) {
     QApplication app(argc, argv);
@@ -16,15 +17,15 @@ int main(int argc, char* argv[]) {
                   bool includeCollision, const QString& collisionPath) {
 
             ply2lcc::ConvertConfig config;
-            config.input_path = inputPath.toStdString();
-            config.output_dir = outputDir.toStdString();
+            config.input_path = std::filesystem::u8path(inputPath.toStdString());
+            config.output_dir = std::filesystem::u8path(outputDir.toStdString());
             config.cell_size_x = static_cast<float>(cellX);
             config.cell_size_y = static_cast<float>(cellY);
             config.single_lod = singleLod;
             config.include_env = includeEnv;
-            config.env_path = envPath.toStdString();
+            config.env_path = std::filesystem::u8path(envPath.toStdString());
             config.include_collision = includeCollision;
-            config.collision_path = collisionPath.toStdString();
+            config.collision_path = std::filesystem::u8path(collisionPath.toStdString());
 
             auto* worker = new ConvertWorker(config, &window);
 

@@ -5,6 +5,14 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# Generate config.h with build timestamp
+string(TIMESTAMP BUILD_TIMESTAMP "%Y-%m-%d %H:%M:%S" UTC)
+configure_file(
+    ${CMAKE_SOURCE_DIR}/src/config.h.in
+    ${CMAKE_BINARY_DIR}/config.h
+    @ONLY
+)
+
 find_package(OpenMP REQUIRED)
 
 add_executable(ply2lcc
@@ -24,11 +32,12 @@ add_executable(ply2lcc
 target_include_directories(ply2lcc PRIVATE
     ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_SOURCE_DIR}/external
+    ${CMAKE_BINARY_DIR}
 )
 
 target_compile_options(ply2lcc PRIVATE
     $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall -Wextra -O2>
-    $<$<CXX_COMPILER_ID:MSVC>:/W3 /O2>
+    $<$<CXX_COMPILER_ID:MSVC>:/W3 /O2 /utf-8>
 )
 
 # Windows-specific: prevent min/max macros from conflicting with std::min/std::max
@@ -59,10 +68,12 @@ if(BUILD_TESTS OR BUILD_GUI)
     target_include_directories(ply2lcc_lib PUBLIC
         ${CMAKE_SOURCE_DIR}/src
         ${CMAKE_SOURCE_DIR}/external
+        ${CMAKE_BINARY_DIR}
     )
     target_link_libraries(ply2lcc_lib PUBLIC OpenMP::OpenMP_CXX)
     if(MSVC)
         target_compile_definitions(ply2lcc_lib PRIVATE NOMINMAX _CRT_SECURE_NO_WARNINGS)
+        target_compile_options(ply2lcc_lib PRIVATE /utf-8)
     endif()
 endif()
 
@@ -97,6 +108,9 @@ if(BUILD_TESTS)
     add_executable(test_platform tests/test_platform.cpp)
     target_include_directories(test_platform PRIVATE ${CMAKE_SOURCE_DIR}/src)
     target_link_libraries(test_platform GTest::gtest_main)
+    if(MSVC)
+        target_compile_options(test_platform PRIVATE /utf-8)
+    endif()
     gtest_discover_tests(test_platform)
 endif()
 

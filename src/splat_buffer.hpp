@@ -133,7 +133,7 @@ public:
     SplatBuffer& operator=(SplatBuffer&&) = default;
 
     /// Initialize from a PLY file. Returns false on error (check error()).
-    bool initialize(const std::string& path);
+    bool initialize(const std::filesystem::path& path);
 
     bool valid() const { return m_data != nullptr; }
     size_t size() const { return m_table.num_rows; }

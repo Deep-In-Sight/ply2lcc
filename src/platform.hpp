@@ -7,8 +7,12 @@
 #include <cstdint>
 #include <cstddef>
 
+#include <vector>
+#include <string>
+
 #ifdef _WIN32
 #include <windows.h>
+#include <shellapi.h>
 #else
 #include <sys/mman.h>
 #include <sys/stat.h>
@@ -151,6 +155,41 @@ inline FILE* fopen(const fs::path& path, const char* mode) {
 #else
     return std::fopen(path.c_str(), mode);
 #endif
+}
+
+/// Set up console and command-line for UTF-8 on Windows.
+/// Returns UTF-8 encoded argv (on Linux, returns the original argv as-is).
+struct Utf8Args {
+    std::vector<std::string> storage;
+    std::vector<char*> argv;
+    int argc = 0;
+};
+
+inline Utf8Args utf8_argv(int argc, char** argv) {
+    Utf8Args result;
+#ifdef _WIN32
+    SetConsoleOutputCP(CP_UTF8);
+
+    int wargc;
+    wchar_t** wargv = CommandLineToArgvW(GetCommandLineW(), &wargc);
+    if (wargv) {
+        result.storage.resize(wargc);
+        result.argv.resize(wargc);
+        for (int i = 0; i < wargc; ++i) {
+            int len = WideCharToMultiByte(CP_UTF8, 0, wargv[i], -1, nullptr, 0, nullptr, nullptr);
+            result.storage[i].resize(len - 1);
+            WideCharToMultiByte(CP_UTF8, 0, wargv[i], -1, result.storage[i].data(), len, nullptr, nullptr);
+            result.argv[i] = result.storage[i].data();
+        }
+        result.argc = wargc;
+        LocalFree(wargv);
+        return result;
+    }
+#endif
+    // Fallback / Linux: use original argv
+    result.argv.assign(argv, argv + argc);
+    result.argc = argc;
+    return result;
 }
 
 } // namespace platform

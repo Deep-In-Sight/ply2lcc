@@ -16,7 +16,7 @@ void GridEncoder::report_progress(int percent, const std::string& msg) {
 }
 
 LccData GridEncoder::encode(const SpatialGrid& grid,
-                             const std::vector<std::string>& lod_files) {
+                             const std::vector<std::filesystem::path>& lod_files) {
     LccData result;
     result.num_lods = grid.num_lods();
     result.bbox = grid.bbox();
@@ -48,7 +48,7 @@ LccData GridEncoder::encode(const SpatialGrid& grid,
         // Open SplatBuffer for this LOD
         SplatBuffer splats;
         if (!splats.initialize(lod_files[lod])) {
-            throw std::runtime_error("Failed to read " + lod_files[lod] + ": " + splats.error());
+            throw std::runtime_error("Failed to read " + lod_files[lod].u8string() + ": " + splats.error());
         }
 
         result.splats_per_lod[lod] = splats.size();
@@ -116,7 +116,7 @@ LccData GridEncoder::encode(const SpatialGrid& grid,
     return result;
 }
 
-EncodedEnvironment GridEncoder::encode_environment(const std::string& env_path, bool has_sh) {
+EncodedEnvironment GridEncoder::encode_environment(const std::filesystem::path& env_path, bool has_sh) {
     EncodedEnvironment result;
 
     SplatBuffer buffer;

@@ -1,4 +1,5 @@
 #include "mainwindow.hpp"
+#include "config.h"
 
 #include <QCheckBox>
 #include <QDir>
@@ -124,6 +125,12 @@ void MainWindow::setupUi() {
     buttonLayout->addWidget(m_convertBtn);
     buttonLayout->addStretch();
     mainLayout->addLayout(buttonLayout);
+
+    // Build info label
+    auto* buildLabel = new QLabel(
+        QString("v%1 (built %2 UTC)").arg(PLY2LCC_VERSION, PLY2LCC_BUILD_TIMESTAMP));
+    buildLabel->setStyleSheet("color: gray; font-size: 10px;");
+    mainLayout->addWidget(buildLabel);
 
     setCentralWidget(centralWidget);
 
