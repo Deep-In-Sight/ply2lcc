@@ -1,24 +1,30 @@
 #ifndef PLY2LCC_LCC_WRITER_HPP
 #define PLY2LCC_LCC_WRITER_HPP
 
-#include <cstdint>
-#include <vector>
+#include "lcc_types.hpp"
+#include <string>
 
 namespace ply2lcc {
 
-// Per-LOD node information for index.bin
-struct LCCNodeInfo {
-    uint32_t splat_count = 0;
-    uint64_t data_offset = 0;
-    uint32_t data_size = 0;
-    uint64_t sh_offset = 0;
-    uint32_t sh_size = 0;
-};
+class LccWriter {
+public:
+    explicit LccWriter(const std::string& output_dir);
 
-// Per-cell unit information for index.bin
-struct LCCUnitInfo {
-    uint32_t index;  // (cell_y << 16) | cell_x
-    std::vector<LCCNodeInfo> lods;  // One per LOD level
+    // Write complete LCC output (data.bin, shcoef.bin, index.bin, meta.lcc, attrs.lcp)
+    void write(const LccData& data);
+
+    // Write environment.bin separately
+    void write_environment(const EncodedEnvironment& env, bool has_sh);
+
+private:
+    void write_data_bin(const LccData& data);
+    void write_index_bin(const LccData& data);
+    void write_meta_lcc(const LccData& data);
+    void write_attrs_lcp();
+
+    static std::string generate_guid();
+
+    std::string output_dir_;
 };
 
 } // namespace ply2lcc

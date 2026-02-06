@@ -1,20 +1,89 @@
 #include "spatial_grid.hpp"
-#include <fstream>
-#include <iostream>
+#include "splat_buffer.hpp"
 #include <cmath>
 #include <algorithm>
+#include <stdexcept>
+#include <omp.h>
 
 namespace ply2lcc {
 
-SpatialGrid::SpatialGrid(float cell_size_x, float cell_size_y, const BBox& bbox, size_t num_lods)
+SpatialGrid::SpatialGrid(float cell_size_x, float cell_size_y, size_t num_lods)
     : cell_size_x_(cell_size_x)
     , cell_size_y_(cell_size_y)
-    , bbox_(bbox)
     , num_lods_(num_lods)
 {
 }
 
-uint32_t SpatialGrid::get_cell_index(const Vec3f& pos) const {
+SpatialGrid SpatialGrid::from_files(const std::vector<std::string>& lod_files,
+                                     float cell_size_x, float cell_size_y) {
+    SpatialGrid grid(cell_size_x, cell_size_y, lod_files.size());
+
+    // First pass: compute global bbox (needed for grid cell calculation)
+    for (size_t lod = 0; lod < lod_files.size(); ++lod) {
+        SplatBuffer buffer;
+        if (!buffer.initialize(lod_files[lod])) {
+            throw std::runtime_error("Failed to read " + lod_files[lod] + ": " + buffer.error());
+        }
+        grid.bbox_.expand(buffer.compute_bbox());
+
+        if (lod == 0) {
+            grid.has_sh_ = buffer.num_f_rest() > 0;
+            grid.sh_degree_ = buffer.sh_degree();
+            grid.num_f_rest_ = buffer.num_f_rest();
+        }
+    }
+
+    // Second pass: parallel grid building per LOD
+    int n_threads = omp_get_max_threads();
+    int bands_per_channel = (grid.has_sh_ && grid.num_f_rest_ > 0) ? grid.num_f_rest_ / 3 : 0;
+
+    for (size_t lod = 0; lod < lod_files.size(); ++lod) {
+        SplatBuffer splats;
+        if (!splats.initialize(lod_files[lod])) {
+            throw std::runtime_error("Failed to read " + lod_files[lod] + ": " + splats.error());
+        }
+
+        std::vector<ThreadLocalGrid> local_grids(n_threads);
+
+        #pragma omp parallel
+        {
+            int tid = omp_get_thread_num();
+            const auto splat_count = static_cast<ptrdiff_t>(splats.size());
+
+            #pragma omp for schedule(static)
+            for (ptrdiff_t i = 0; i < splat_count; ++i) {
+                SplatView sv = splats[static_cast<size_t>(i)];
+                uint32_t cell_id = grid.compute_cell_index(sv.pos());
+
+                local_grids[tid].cell_indices[cell_id].push_back(static_cast<size_t>(i));
+
+                // Expand ranges
+                Vec3f linear_scale(std::exp(sv.scale().x), std::exp(sv.scale().y), std::exp(sv.scale().z));
+                local_grids[tid].ranges.expand_scale(linear_scale);
+                local_grids[tid].ranges.expand_opacity(sigmoid(sv.opacity()));
+
+                if (bands_per_channel > 0) {
+                    for (int band = 0; band < bands_per_channel; ++band) {
+                        local_grids[tid].ranges.expand_sh(
+                            sv.f_rest(band),
+                            sv.f_rest(band + bands_per_channel),
+                            sv.f_rest(band + 2 * bands_per_channel));
+                    }
+                }
+            }
+        }
+
+        // Sequential merge
+        for (int t = 0; t < n_threads; ++t) {
+            grid.merge(local_grids[t], lod);
+            grid.ranges_.merge(local_grids[t].ranges);
+        }
+    }
+
+    return grid;
+}
+
+uint32_t SpatialGrid::compute_cell_index(const Vec3f& pos) const {
     int cell_x = static_cast<int>(std::floor((pos.x - bbox_.min.x) / cell_size_x_));
     int cell_y = static_cast<int>(std::floor((pos.y - bbox_.min.y) / cell_size_y_));
 
@@ -35,47 +104,6 @@ void SpatialGrid::merge(const ThreadLocalGrid& local, size_t lod) {
         auto& target = it->second.splat_indices[lod];
         target.insert(target.end(), indices.begin(), indices.end());
     }
-}
-
-bool SpatialGrid::write_index_bin(const std::string& path,
-                                  const std::vector<LCCUnitInfo>& units,
-                                  size_t num_lods) const {
-    std::ofstream file(path, std::ios::binary);
-    if (!file) {
-        std::cerr << "Failed to create index.bin\n";
-        return false;
-    }
-
-    // Sort units by (cell_x, cell_y) - column first, then row
-    // This matches the reference LCC format ordering
-    std::vector<LCCUnitInfo> sorted_units = units;
-    std::sort(sorted_units.begin(), sorted_units.end(),
-              [](const LCCUnitInfo& a, const LCCUnitInfo& b) {
-                  uint16_t ax = a.index & 0xFFFF;
-                  uint16_t ay = (a.index >> 16) & 0xFFFF;
-                  uint16_t bx = b.index & 0xFFFF;
-                  uint16_t by = (b.index >> 16) & 0xFFFF;
-                  if (ax != bx) return ax < bx;
-                  return ay < by;
-              });
-
-    // Each unit entry: index(4) + [count(4) + offset(8) + size(4)] * num_lods
-    // = 4 + 16 * num_lods bytes per unit
-
-    for (const auto& unit : sorted_units) {
-        // Write unit index
-        file.write(reinterpret_cast<const char*>(&unit.index), 4);
-
-        // Write LOD entries
-        for (size_t lod = 0; lod < num_lods; ++lod) {
-            const LCCNodeInfo& node = unit.lods[lod];
-            file.write(reinterpret_cast<const char*>(&node.splat_count), 4);
-            file.write(reinterpret_cast<const char*>(&node.data_offset), 8);
-            file.write(reinterpret_cast<const char*>(&node.data_size), 4);
-        }
-    }
-
-    return true;
 }
 
 } // namespace ply2lcc

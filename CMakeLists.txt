@@ -14,9 +14,9 @@ add_executable(ply2lcc
     src/ply_reader_mmap.cpp
     src/compression.cpp
     src/spatial_grid.cpp
-    src/meta_writer.cpp
-    src/env_writer.cpp
-    src/attrs_writer.cpp
+    src/grid_encoder.cpp
+    src/lcc_types.cpp
+    src/lcc_writer.cpp
     external/miniply/miniply.cpp
 )
 
@@ -49,9 +49,9 @@ if(BUILD_TESTS OR BUILD_GUI)
         src/ply_reader_mmap.cpp
         src/compression.cpp
         src/spatial_grid.cpp
-        src/meta_writer.cpp
-        src/env_writer.cpp
-        src/attrs_writer.cpp
+        src/grid_encoder.cpp
+        src/lcc_types.cpp
+        src/lcc_writer.cpp
         external/miniply/miniply.cpp
     )
     target_include_directories(ply2lcc_lib PUBLIC

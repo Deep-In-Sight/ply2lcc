@@ -6,8 +6,8 @@ A high-performance converter for 3D Gaussian Splatting (3DGS) PLY files to LCC f
 
 - **Zero-copy PLY reading**: Memory-mapped file access with SplatView for direct data access
 - **Parallel grid building**: OpenMP-parallelized spatial partitioning with thread-local grids
-- **Multi-LOD support**: Automatic detection and processing of LOD files (point_cloud_lod0.ply, etc.)
-- **Environment support**: Separate processing of environment splats (point_cloud_env.ply)
+- **Multi-LOD support**: Automatic detection and processing of LOD files (point_cloud_1.ply, point_cloud_2.ply, etc.)
+- **Environment support**: Separate processing of environment splats (environment.ply)
 - **SH coefficient encoding**: Full support for spherical harmonic coefficients (degree 3)
 
 ## Build
@@ -28,19 +28,16 @@ cmake .. -DBUILD_GUI=ON
 make -j$(nproc)
 ```
 
-This builds both the CLI (`ply2lcc`) and GUI (`ply2lcc_gui`) executables.
+This builds both the CLI (`ply2lcc`) and GUI (`ply2lcc-gui`) executables.
 
 ## Usage
 
 ```bash
-# Single PLY file
+# Single PLY file (auto-detects point_cloud_1.ply, point_cloud_2.ply, etc. in same dir)
 ./ply2lcc -i /path/to/point_cloud.ply -o /path/to/output_dir
 
-# LOD directory (auto-detects lod0, lod1, etc.)
-./ply2lcc -i /path/to/iteration_30000 -o /path/to/output_dir
-
 # Custom cell size
-./ply2lcc -i input.ply -o output -x 50 -y 50
+./ply2lcc -i input.ply -o output --cell-size 50,50
 
 # Single LOD mode (no LOD hierarchy)
 ./ply2lcc -i input.ply -o output --single-lod
@@ -50,20 +47,19 @@ This builds both the CLI (`ply2lcc`) and GUI (`ply2lcc_gui`) executables.
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `-i, --input` | Input PLY file or directory | Required |
-| `-o, --output` | Output LCC directory | Required |
+| `-i <path>` | Input PLY file | Required |
+| `-o <path>` | Output LCC directory | Required |
 | `-e <path>` | Path to environment.ply | Auto-detect in input dir |
 | `-m <path>` | Path to collision.ply | Auto-detect in input dir |
-| `-x, --cell-x` | Grid cell size X (meters) | 30.0 |
-| `-y, --cell-y` | Grid cell size Y (meters) | 30.0 |
-| `--single-lod` | Treat input as single LOD | false |
+| `--cell-size X,Y` | Grid cell size in meters | 30,30 |
+| `--single-lod` | Use only LOD0 even if more exist | false |
 
 ## GUI Usage
 
 The GUI provides a user-friendly interface for users unfamiliar with command line tools.
 
 ```bash
-./ply2lcc_gui
+./ply2lcc-gui
 ```
 
 ### Features
@@ -94,33 +90,33 @@ When enabling environment or collision, the default path is set to the input dir
 ## Architecture
 
 ```
-PLY Files (mmap)
-     |
-     v
-SplatBuffer (zero-copy views)
-     |
-     v
-Parallel Grid Building (OpenMP)
-  - Thread-local grids
-  - Parallel range computation
-  - Sequential merge
-     |
-     v
-Parallel Encoding (OpenMP)
-  - Position, color, scale, rotation
-  - SH coefficients (11-10-11 bit packing)
-     |
-     v
-LCC Output
+ConvertApp (orchestrator)
+     │
+     ├── SpatialGrid::from_files()
+     │   └── PLY Files → SplatBuffer (mmap, zero-copy)
+     │       └── Parallel grid building (OpenMP)
+     │           - Thread-local grids
+     │           - Range computation
+     │           - Sequential merge
+     │
+     ├── GridEncoder::encode()
+     │   └── Parallel cell encoding (OpenMP)
+     │       - Position, color, scale, rotation
+     │       - SH coefficients (11-10-11 bit packing)
+     │       → LccData
+     │
+     └── LccWriter::write()
+         └── data.bin, shcoef.bin, index.bin, meta.lcc, attrs.lcp
 ```
 
 ### Key Components
 
 - **SplatBuffer/SplatView**: Zero-copy access to memory-mapped PLY data
-- **SpatialGrid**: Spatial partitioning with cell-based indexing
-- **ThreadLocalGrid**: Per-thread grid state for parallel building
-- **Compression**: Encoding functions (color, scale, rotation, SH)
-- **ConvertApp**: Main conversion pipeline orchestration
+- **SpatialGrid**: Grid building with `from_files()` factory, cell indexing, range computation
+- **GridEncoder**: Parallel splat encoding, produces `LccData`
+- **LccData**: Data container (encoded cells, environment, metadata)
+- **LccWriter**: Consolidated file I/O for all LCC output files
+- **ConvertApp**: Thin orchestrator for the conversion pipeline
 
 ## Performance
 
