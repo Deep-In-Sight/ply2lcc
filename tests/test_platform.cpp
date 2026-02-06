@@ -65,6 +65,28 @@ TEST_F(PlatformTest, MadviseDoesNotCrash) {
     platform::file_close(handle);
 }
 
+TEST_F(PlatformTest, OfstreamOpen) {
+    fs::path out_file = fs::temp_directory_path() / "platform_out.txt";
+    {
+        auto stream = platform::ofstream_open(out_file);
+        EXPECT_TRUE(stream.is_open());
+        stream << "Test output";
+    }
+    std::ifstream in(out_file);
+    std::string content;
+    std::getline(in, content);
+    EXPECT_EQ(content, "Test output");
+    fs::remove(out_file);
+}
+
+TEST_F(PlatformTest, IfstreamOpen) {
+    auto stream = platform::ifstream_open(test_file);
+    EXPECT_TRUE(stream.is_open());
+    std::string content;
+    std::getline(stream, content);
+    EXPECT_EQ(content, "Hello, World!");
+}
+
 TEST_F(PlatformTest, Fopen) {
     FILE* f = platform::fopen(test_file, "r");
     ASSERT_NE(f, nullptr);
