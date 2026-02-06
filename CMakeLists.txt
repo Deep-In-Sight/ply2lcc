@@ -93,6 +93,11 @@ if(BUILD_TESTS)
     gtest_discover_tests(test_compression)
     gtest_discover_tests(test_types)
     gtest_discover_tests(test_integration)
+
+    add_executable(test_platform tests/test_platform.cpp)
+    target_include_directories(test_platform PRIVATE ${CMAKE_SOURCE_DIR}/src)
+    target_link_libraries(test_platform GTest::gtest_main)
+    gtest_discover_tests(test_platform)
 endif()
 
 # GUI
