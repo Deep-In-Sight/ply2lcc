@@ -200,13 +200,10 @@ bool CollisionEncoder::read_ply(const std::filesystem::path& path,
 void CollisionEncoder::partition_by_cell(const std::vector<Vec3f>& vertices,
                                           const std::vector<Triangle>& faces,
                                           float cell_size_x, float cell_size_y,
-                                          std::vector<CollisionCell>& cells,
-                                          BBox& bbox) {
-    // Compute bounding box
-    bbox = BBox();
-    for (const auto& v : vertices) {
-        bbox.expand(v);
-    }
+                                          const BBox& scene_bbox,
+                                          std::vector<CollisionCell>& cells) {
+    // Use scene bbox (from splat cloud) for cell partitioning
+    // This ensures collision cells align with splat grid cells
 
     // Map from cell index to cell data
     std::map<uint32_t, CollisionCell> cell_map;
@@ -221,9 +218,9 @@ void CollisionEncoder::partition_by_cell(const std::vector<Vec3f>& vertices,
         float cx = (v0.x + v1.x + v2.x) / 3.0f;
         float cy = (v0.y + v1.y + v2.y) / 3.0f;
 
-        // Compute cell coordinates
-        int cell_x = static_cast<int>((cx - bbox.min.x) / cell_size_x);
-        int cell_y = static_cast<int>((cy - bbox.min.y) / cell_size_y);
+        // Compute cell coordinates using scene bbox
+        int cell_x = static_cast<int>((cx - scene_bbox.min.x) / cell_size_x);
+        int cell_y = static_cast<int>((cy - scene_bbox.min.y) / cell_size_y);
         if (cell_x < 0) cell_x = 0;
         if (cell_y < 0) cell_y = 0;
 
@@ -322,7 +319,7 @@ void CollisionEncoder::build_bvh(CollisionCell& cell) {
         indices[i] = static_cast<uint32_t>(i);
     }
 
-    constexpr uint32_t MAX_LEAF_SIZE = 4;
+    constexpr uint32_t MAX_LEAF_SIZE = 16;
 
     // Build stack
     std::vector<BVHBuildEntry> stack;
@@ -348,8 +345,10 @@ void CollisionEncoder::build_bvh(CollisionCell& cell) {
         uint32_t node_idx = static_cast<uint32_t>(nodes.size());
 
         // Update parent's right child pointer if needed
+        // Per LCC whitepaper: right field is byte offset from start of BVH data, divided by 4
+        // Each node is 32 bytes, so node_idx * 32 / 4 = node_idx * 8
         if (entry.parent_idx != UINT32_MAX && entry.is_right_child) {
-            nodes[entry.parent_idx].data0 = node_idx;
+            nodes[entry.parent_idx].data0 = node_idx * 8;
         }
 
         if (entry.count <= MAX_LEAF_SIZE) {
@@ -411,10 +410,12 @@ void CollisionEncoder::build_bvh(CollisionCell& cell) {
 }
 
 CollisionData CollisionEncoder::encode(const std::filesystem::path& mesh_path,
-                                        float cell_size_x, float cell_size_y) {
+                                        float cell_size_x, float cell_size_y,
+                                        const BBox& scene_bbox) {
     CollisionData data;
     data.cell_size_x = cell_size_x;
     data.cell_size_y = cell_size_y;
+    data.bbox = scene_bbox;  // Use scene bbox, not mesh bbox
 
     log("Reading collision mesh: " + mesh_path.u8string() + "\n");
 
@@ -426,7 +427,7 @@ CollisionData CollisionEncoder::encode(const std::filesystem::path& mesh_path,
     }
 
     log("Partitioning mesh...\n");
-    partition_by_cell(vertices, faces, cell_size_x, cell_size_y, data.cells, data.bbox);
+    partition_by_cell(vertices, faces, cell_size_x, cell_size_y, scene_bbox, data.cells);
 
     log("Building BVH for each cell...\n");
     for (auto& cell : data.cells) {

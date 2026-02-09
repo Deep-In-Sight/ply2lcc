@@ -49,7 +49,7 @@ target_link_libraries(ply2lcc PRIVATE OpenMP::OpenMP_CXX)
 
 # Options
 option(BUILD_TESTS "Build unit tests" ON)
-option(BUILD_GUI "Build Qt GUI application" OFF)
+option(BUILD_GUI "Build Qt GUI application" ON)
 
 # Build shared library if tests or GUI are enabled
 if(BUILD_TESTS OR BUILD_GUI)

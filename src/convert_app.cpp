@@ -110,7 +110,8 @@ void ConvertApp::run() {
         log("\nPhase 4: Encoding collision mesh...\n");
         CollisionEncoder collision_encoder;
         collision_encoder.set_log_callback([this](const std::string& msg) { log(msg); });
-        data.collision = collision_encoder.encode(collision_file_, cell_size_x_, cell_size_y_);
+        // Pass scene bbox so collision cells align with splat grid cells
+        data.collision = collision_encoder.encode(collision_file_, cell_size_x_, cell_size_y_, grid.bbox());
         if (!data.collision.empty()) {
             log("  Collision: " + std::to_string(data.collision.total_triangles()) + " triangles, " +
                 std::to_string(data.collision.cells.size()) + " cells\n");
