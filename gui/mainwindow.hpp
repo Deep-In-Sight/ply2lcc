@@ -26,7 +26,9 @@ signals:
                              bool includeEnvironment,
                              const QString& envPath,
                              bool includeCollision,
-                             const QString& collisionPath);
+                             const QString& collisionPath,
+                             bool includePoses,
+                             const QString& posesPath);
 
 public slots:
     void onProgressChanged(int percent);
@@ -38,11 +40,13 @@ private slots:
     void browseOutput();
     void browseEnv();
     void browseCollision();
+    void browsePoses();
     void startConversion();
     void updateConvertButtonState();
     void onInputPathChanged(const QString& path);
     void onEnvPathChanged(const QString& path);
     void onCollisionPathChanged(const QString& path);
+    void onPosesPathChanged(const QString& path);
 
 private:
     void setupUi();
@@ -66,6 +70,9 @@ private:
     QCheckBox* m_includeCollisionCheck;
     QLineEdit* m_collisionPathEdit;
     QPushButton* m_browseCollisionBtn;
+    QCheckBox* m_includePosesCheck;
+    QLineEdit* m_posesPathEdit;
+    QPushButton* m_browsePosesBtn;
 
     // Log and progress widgets
     QTextEdit* m_logEdit;

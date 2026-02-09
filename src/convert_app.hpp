@@ -41,8 +41,10 @@ private:
     std::vector<std::filesystem::path> lod_files_;
     bool include_env_ = false;
     bool include_collision_ = false;
+    bool include_poses_ = false;
     std::filesystem::path env_file_;
     std::filesystem::path collision_file_;
+    std::filesystem::path poses_file_;
 };
 
 } // namespace ply2lcc

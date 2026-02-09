@@ -27,8 +27,10 @@ ConvertApp::ConvertApp(const ConvertConfig& config)
     , single_lod_(config.single_lod)
     , include_env_(config.include_env)
     , include_collision_(config.include_collision)
+    , include_poses_(config.include_poses)
     , env_file_(config.env_path)
     , collision_file_(config.collision_path)
+    , poses_file_(config.poses_path)
 {
     // Derive input_dir_ and base_name_ from input_path_
     if (fs::is_directory(input_path_)) {
@@ -118,6 +120,12 @@ void ConvertApp::run() {
         }
     }
 
+    // Step 5: adding poses path if exists
+    if (!poses_file_.empty() && fs::exists(poses_file_)) {
+        data.poses_path = poses_file_;
+        log("\nIncluded poses from: " + poses_file_.u8string() + "\n");
+    }
+
     // Step 5: Write all output files
     reportProgress(90, "Writing output files...");
     log("\nPhase 5: Writing LCC data...\n");
@@ -139,6 +147,7 @@ void ConvertApp::printUsage() {
               << "Options:\n"
               << "  -e <path>          Include environment splats from specified .ply file\n"
               << "  -m <path>          Include collision mesh from specified .ply or .obj file\n"
+              << "  -p <path>          Include trajectory poses from specified .json file\n"
               << "  --single-lod       Use only LOD0 even if more LOD files exist\n"
               << "  --cell-size X,Y    Grid cell size in meters (default: 30,30)\n";
 }
@@ -156,6 +165,9 @@ void ConvertApp::parseArgs() {
         } else if (arg == "-m" && i + 1 < argc_) {
             collision_file_ = fs::u8path(argv_[++i]);
             include_collision_ = true;
+        } else if (arg == "-p" && i + 1 < argc_) {
+            poses_file_ = fs::u8path(argv_[++i]);
+            include_poses_ = true;
         } else if (arg == "--single-lod") {
             single_lod_ = true;
         } else if (arg == "--cell-size" && i + 1 < argc_) {
@@ -258,6 +270,18 @@ void ConvertApp::findPlyFiles() {
                 log("Warning: collision file not found: " + collision_file_.u8string() + "\n");
             }
             collision_file_.clear();
+        }
+    }
+
+    // Validate poses file (no auto-detect)
+    if (include_poses_) {
+        if (!poses_file_.empty() && fs::exists(poses_file_)) {
+            log("Poses: " + poses_file_.u8string() + "\n");
+        } else {
+            if (!poses_file_.empty()) {
+                log("Warning: poses file not found: " + poses_file_.u8string() + "\n");
+            }
+            poses_file_.clear();
         }
     }
 }

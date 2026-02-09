@@ -14,7 +14,8 @@ int main(int argc, char* argv[]) {
         [&window](const QString& inputPath, const QString& outputDir,
                   double cellX, double cellY, bool singleLod,
                   bool includeEnv, const QString& envPath,
-                  bool includeCollision, const QString& collisionPath) {
+                  bool includeCollision, const QString& collisionPath,
+                  bool includePoses, const QString& posesPath) {
 
             ply2lcc::ConvertConfig config;
             config.input_path = std::filesystem::u8path(inputPath.toStdString());
@@ -26,6 +27,8 @@ int main(int argc, char* argv[]) {
             config.env_path = std::filesystem::u8path(envPath.toStdString());
             config.include_collision = includeCollision;
             config.collision_path = std::filesystem::u8path(collisionPath.toStdString());
+            config.include_poses = includePoses;
+            config.poses_path = std::filesystem::u8path(posesPath.toStdString());
 
             auto* worker = new ConvertWorker(config, &window);
 

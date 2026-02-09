@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <vector>
 #include <string>
+#include <filesystem>
 
 namespace ply2lcc {
 
@@ -103,6 +104,7 @@ struct LccData {
     std::vector<EncodedCellData> cells;     // All cells, all LODs
     EncodedEnvironment environment;          // Optional
     CollisionData collision;                 // Optional
+    std::filesystem::path poses_path;                  // Optional
 
     // Metadata (computed during encoding)
     size_t num_lods = 0;

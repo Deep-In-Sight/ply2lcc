@@ -21,6 +21,7 @@ private:
     void write_attrs_lcp(const LccData& data);
     void write_environment(const LccData& data);
     void write_collision(const LccData& data);
+    void write_poses(const LccData& data);
 
     static std::string generate_guid();
 

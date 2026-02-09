@@ -99,6 +99,18 @@ void MainWindow::setupUi() {
     collisionLayout->addWidget(m_browseCollisionBtn);
     settingsLayout->addLayout(collisionLayout);
 
+    // Poses row
+    auto* posesLayout = new QHBoxLayout();
+    m_includePosesCheck = new QCheckBox("Include poses:");
+    m_includePosesCheck->setChecked(false);
+    posesLayout->addWidget(m_includePosesCheck);
+    m_posesPathEdit = new QLineEdit();
+    m_posesPathEdit->setPlaceholderText("Path to poses.json...");
+    posesLayout->addWidget(m_posesPathEdit, 1);
+    m_browsePosesBtn = new QPushButton("Browse...");
+    posesLayout->addWidget(m_browsePosesBtn);
+    settingsLayout->addLayout(posesLayout);
+
     mainLayout->addWidget(settingsGroup);
 
     // Log area
@@ -144,9 +156,11 @@ void MainWindow::setupUi() {
     connect(m_inputPathEdit, &QLineEdit::textChanged, this, &MainWindow::onInputPathChanged);
     connect(m_outputDirEdit, &QLineEdit::textChanged, this, &MainWindow::updateConvertButtonState);
 
-    // Environment and collision path change handlers
+    // Environment, collision, and poses path change handlers
     connect(m_envPathEdit, &QLineEdit::textChanged, this, &MainWindow::onEnvPathChanged);
     connect(m_collisionPathEdit, &QLineEdit::textChanged, this, &MainWindow::onCollisionPathChanged);
+    connect(m_browsePosesBtn, &QPushButton::clicked, this, &MainWindow::browsePoses);
+    connect(m_posesPathEdit, &QLineEdit::textChanged, this, &MainWindow::onPosesPathChanged);
 }
 
 void MainWindow::browseInput() {
@@ -195,6 +209,18 @@ void MainWindow::browseCollision() {
     }
 }
 
+void MainWindow::browsePoses() {
+    QString startDir = getInputDir();
+    QString filePath = QFileDialog::getOpenFileName(
+        this,
+        "Select Poses JSON File",
+        startDir,
+        "JSON Files (*.json);;All Files (*)");
+    if (!filePath.isEmpty()) {
+        m_posesPathEdit->setText(filePath);
+    }
+}
+
 void MainWindow::startConversion() {
     setInputsEnabled(false);
     m_progressBar->setValue(0);
@@ -203,14 +229,17 @@ void MainWindow::startConversion() {
     QString timestamp = QTime::currentTime().toString("hh:mm:ss");
     m_logEdit->append(QString("[%1] Starting conversion...").arg(timestamp));
 
-    // Only include env/collision if checkbox is checked AND file exists
+    // Only include env/collision/poses if checkbox is checked AND file exists
     bool includeEnv = m_includeEnvCheck->isChecked() &&
                       QFileInfo::exists(m_envPathEdit->text());
     bool includeCollision = m_includeCollisionCheck->isChecked() &&
                             QFileInfo::exists(m_collisionPathEdit->text());
+    bool includePoses = m_includePosesCheck->isChecked() &&
+                        QFileInfo::exists(m_posesPathEdit->text());
 
     QString envPath = includeEnv ? m_envPathEdit->text() : QString();
     QString collisionPath = includeCollision ? m_collisionPathEdit->text() : QString();
+    QString posesPath = includePoses ? m_posesPathEdit->text() : QString();
 
     emit conversionRequested(
         m_inputPathEdit->text(),
@@ -221,7 +250,9 @@ void MainWindow::startConversion() {
         includeEnv,
         envPath,
         includeCollision,
-        collisionPath);
+        collisionPath,
+        includePoses,
+        posesPath);
 }
 
 void MainWindow::updateConvertButtonState() {
@@ -250,6 +281,13 @@ void MainWindow::onInputPathChanged(const QString& path) {
     if (currentCollPath.isEmpty() || currentCollPath.endsWith("/collision.ply")) {
         m_collisionPathEdit->setText(defaultCollPath);
     }
+
+    // Update poses default path if empty or was a default path
+    QString defaultPosesPath = QDir(dir).filePath("poses.json");
+    QString currentPosesPath = m_posesPathEdit->text();
+    if (currentPosesPath.isEmpty() || currentPosesPath.endsWith("/poses.json")) {
+        m_posesPathEdit->setText(defaultPosesPath);
+    }
 }
 
 void MainWindow::onEnvPathChanged(const QString& path) {
@@ -260,6 +298,11 @@ void MainWindow::onEnvPathChanged(const QString& path) {
 void MainWindow::onCollisionPathChanged(const QString& path) {
     bool exists = !path.isEmpty() && QFileInfo::exists(path);
     updatePathStyle(m_collisionPathEdit, exists);
+}
+
+void MainWindow::onPosesPathChanged(const QString& path) {
+    bool exists = !path.isEmpty() && QFileInfo::exists(path);
+    updatePathStyle(m_posesPathEdit, exists);
 }
 
 QString MainWindow::getInputDir() const {
@@ -302,6 +345,11 @@ void MainWindow::setInputsEnabled(bool enabled) {
     m_includeCollisionCheck->setEnabled(enabled);
     m_collisionPathEdit->setEnabled(enabled);
     m_browseCollisionBtn->setEnabled(enabled);
+
+    // Poses controls
+    m_includePosesCheck->setEnabled(enabled);
+    m_posesPathEdit->setEnabled(enabled);
+    m_browsePosesBtn->setEnabled(enabled);
 
     m_convertBtn->setEnabled(enabled && !m_inputPathEdit->text().isEmpty() &&
                              !m_outputDirEdit->text().isEmpty());

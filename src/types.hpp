@@ -192,6 +192,8 @@ struct ConvertConfig {
     std::filesystem::path env_path;
     bool include_collision = false;
     std::filesystem::path collision_path;
+    bool include_poses = false;
+    std::filesystem::path poses_path;
 };
 
 // Utility functions

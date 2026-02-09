@@ -23,6 +23,7 @@ void LccWriter::write(const LccData& data) {
     write_attrs_lcp(data);
     write_environment(data);
     write_collision(data);
+    write_poses(data);
 }
 
 void LccWriter::write_environment(const LccData& data) {
@@ -333,6 +334,16 @@ void LccWriter::write_meta_lcc(const LccData& data) {
     file << "}\n";
 }
 
+void LccWriter::write_poses(const LccData& data) {
+    if (data.poses_path.empty()) return;
+
+    // Create assets directory if needed
+    auto assets_dir = output_dir_ / "assets";
+    fs::create_directories(assets_dir);
+
+    fs::copy_file(data.poses_path, assets_dir / "poses.json", fs::copy_options::overwrite_existing);
+}
+
 void LccWriter::write_attrs_lcp(const LccData& data) {
     auto file = platform::ofstream_open(output_dir_ / "attrs.lcp", std::ios::out);
     if (!file) {
@@ -351,6 +362,9 @@ void LccWriter::write_attrs_lcp(const LccData& data) {
     file << "}";
     if (!data.collision.empty()) {
         file << ",\"collider\":{\"simpleMesh\":{\"type\":\"ply\",\"path\":\"collision.lci\"}}";
+    }
+    if (!data.poses_path.empty()) {
+        file << ",\"poses\":{\"path\":\"assets/poses.json\"}";
     }
     file << "}\n";
 }
