@@ -18,7 +18,7 @@ private:
     void write_data_bin(const LccData& data);
     void write_index_bin(const LccData& data);
     void write_meta_lcc(const LccData& data);
-    void write_attrs_lcp();
+    void write_attrs_lcp(const LccData& data);
     void write_environment(const LccData& data);
     void write_collision(const LccData& data);
 

@@ -20,7 +20,7 @@ void LccWriter::write(const LccData& data) {
     write_data_bin(data);
     write_index_bin(data);
     write_meta_lcc(data);
-    write_attrs_lcp();
+    write_attrs_lcp(data);
     write_environment(data);
     write_collision(data);
 }
@@ -213,7 +213,7 @@ void LccWriter::write_meta_lcc(const LccData& data) {
     file << "\t\"guid\": \"" << generate_guid() << "\",\n";
     file << "\t\"name\": \"XGrids Splats\",\n";
     file << "\t\"description\": \"Converted from PLY\",\n";
-    file << "\t\"source\": \"ply\",\n";
+    file << "\t\"source\": \"lcc\",\n";
     file << "\t\"dataType\": \"DIMENVUE\",\n";
     file << "\t\"totalSplats\": " << data.total_splats << ",\n";
     file << "\t\"totalLevel\": " << data.num_lods << ",\n";
@@ -333,7 +333,7 @@ void LccWriter::write_meta_lcc(const LccData& data) {
     file << "}\n";
 }
 
-void LccWriter::write_attrs_lcp() {
+void LccWriter::write_attrs_lcp(const LccData& data) {
     auto file = platform::ofstream_open(output_dir_ / "attrs.lcp", std::ios::out);
     if (!file) {
         throw std::runtime_error("Failed to create attrs.lcp");
@@ -349,6 +349,9 @@ void LccWriter::write_attrs_lcp() {
     file << "\"rotation\":[0,0,0,1],";
     file << "\"scale\":[1,1,1]";
     file << "}";
+    if (!data.collision.empty()) {
+        file << ",\"collider\":{\"simpleMesh\":{\"type\":\"ply\",\"path\":\"collision.lci\"}}";
+    }
     file << "}\n";
 }
 

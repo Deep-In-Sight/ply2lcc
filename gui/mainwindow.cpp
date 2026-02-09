@@ -93,7 +93,7 @@ void MainWindow::setupUi() {
     m_includeCollisionCheck->setChecked(false);
     collisionLayout->addWidget(m_includeCollisionCheck);
     m_collisionPathEdit = new QLineEdit();
-    m_collisionPathEdit->setPlaceholderText("Path to collision.ply...");
+    m_collisionPathEdit->setPlaceholderText("Path to collision mesh (.ply or .obj)...");
     collisionLayout->addWidget(m_collisionPathEdit, 1);
     m_browseCollisionBtn = new QPushButton("Browse...");
     collisionLayout->addWidget(m_browseCollisionBtn);
@@ -187,9 +187,9 @@ void MainWindow::browseCollision() {
     QString startDir = getInputDir();
     QString filePath = QFileDialog::getOpenFileName(
         this,
-        "Select Collision PLY File",
+        "Select Collision Mesh File",
         startDir,
-        "PLY Files (*.ply);;All Files (*)");
+        "Mesh Files (*.ply *.obj);;PLY Files (*.ply);;OBJ Files (*.obj);;All Files (*)");
     if (!filePath.isEmpty()) {
         m_collisionPathEdit->setText(filePath);
     }
